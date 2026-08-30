@@ -155,7 +155,7 @@ export const createHttpServer = async <TContext = unknown>(
   app.use(express.json())
 
   // Step 1: Parse and validate the OpenAPI specification.
-  const spec = await parseFromUri(config.openApiFilePath)
+  const spec = await parseFromUri(config.openApiFilePath, config.jectOptions)
 
   if (!spec || typeof spec !== "object" || !("paths" in spec)) {
     throw new Error("Failed to parse OpenAPI spec: Invalid structure or missing 'paths'")

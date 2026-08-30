@@ -1,3 +1,4 @@
+import { JectOptions } from "json-ject"
 import { ServerPlugin } from "./plugin-sdk.js"
 
 /**
@@ -41,5 +42,10 @@ export type CreateServerConfig<TContext = unknown> = {
     /**
      * The network port on which the standard HTTP server will listen for incoming unencrypted traffic.
      */
-    httpPort: number
+    httpPort: number,
+
+    /**
+     * Passthrough to ject
+     */
+    jectOptions: JectOptions
 }
