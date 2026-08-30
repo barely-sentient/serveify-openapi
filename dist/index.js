@@ -108,10 +108,10 @@ var createEndpoints = (express2, method, urls, config) => {
     const endpoint = routes[url];
     if (!endpoint) {
       unhandledEndpoints.push({ method, url });
-      express2[method](url, executeHandler(useDefaultHandler(), config));
+      express2[method.toLowerCase()](url, executeHandler(useDefaultHandler(), config));
       return;
     }
-    express2[method](url, executeHandler(endpoint, config));
+    express2[method.toLowerCase()](url, executeHandler(endpoint, config));
   });
 };
 export {

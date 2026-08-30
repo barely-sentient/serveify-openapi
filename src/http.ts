@@ -97,10 +97,10 @@ const createEndpoints = (express: Express, method: HttpMethod, urls: string[], c
 
         if (!endpoint) {
             unhandledEndpoints.push({ method, url })
-            express[method as keyof Express](url, executeHandler(useDefaultHandler(), config));
+            express[method.toLowerCase() as keyof Express](url, executeHandler(useDefaultHandler(), config));
             return;
         }
-        express[method as keyof Express](url, executeHandler(endpoint, config));
+        express[method.toLowerCase() as keyof Express](url, executeHandler(endpoint, config));
     });
 }
 
