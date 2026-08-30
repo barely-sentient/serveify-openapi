@@ -182,7 +182,7 @@ var createHttpServer = async (conf) => {
     return dereferenceSchema(schema, openapiDoc);
   };
   await Promise.all(
-    (conf.plugins ?? []).map((plugin) => plugin.beforeRouting?.())
+    (conf.plugins ?? []).map((plugin) => plugin.beforeRouting?.(openapiDoc))
   );
   const app = express();
   getEndpointsFromSchema(app, openapiDoc, conf);

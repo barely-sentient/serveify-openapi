@@ -47,5 +47,5 @@ export type ServerPlugin<TContext = unknown> = {
      * Executes before any of the routing happens, perfect opportunity to
      * find any handlers and add them. 
      */
-    beforeRouting?: () => Promise<void>
+    beforeRouting?: (schema: unknown) => Promise<void>
 }

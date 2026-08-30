@@ -152,7 +152,7 @@ export const createHttpServer = async (conf: CreateServerConfig) => {
 
     // before the routing starts
     await Promise.all(
-        (conf.plugins ?? []).map(plugin => plugin.beforeRouting?.())
+        (conf.plugins ?? []).map(plugin => plugin.beforeRouting?.(openapiDoc))
     );
 
     const app = express();
