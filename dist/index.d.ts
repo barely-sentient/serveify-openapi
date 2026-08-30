@@ -97,6 +97,18 @@ type CreateServerConfig<TContext = unknown> = {
     buildSession: (req: Request) => Promise<TContext>;
 };
 
-declare const createHttpServer: (conf: CreateServerConfig) => Promise<void>;
+type Endpoint<TContext = unknown> = {
+    handler: (req: Request, session: TContext) => Promise<unknown>;
+};
 
-export { type CreateServerConfig, type SSLConfig, type ServerPlugin, createHttpServer };
+declare const registerEndpointHandler: <TContext = unknown>(method: HttpMethod, path: string, handler: Endpoint<TContext>) => void;
+declare const createHttpServer: (conf: CreateServerConfig) => Promise<void>;
+type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' | 'HEAD' | 'OPTIONS';
+
+declare const useCustomHandlers: ServerPlugin;
+
+declare const useEventify: ServerPlugin;
+
+declare const useGlobLoader: (path: string) => ServerPlugin;
+
+export { type CreateServerConfig, type SSLConfig, type ServerPlugin, createHttpServer, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader };

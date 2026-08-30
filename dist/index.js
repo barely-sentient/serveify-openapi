@@ -39,7 +39,7 @@ var executeHandler = (endpoint, config) => {
       }
       result = {
         status: "failed",
-        message: error
+        message: error.message ?? error
       };
     }
     response.setHeader("Content-Type", "application/json");
@@ -66,6 +66,9 @@ var routeMap = {
   DELETE: {},
   HEAD: {},
   OPTIONS: {}
+};
+var registerEndpointHandler = (method, path, handler) => {
+  routeMap[method][path] = handler;
 };
 var createHttpServer = async (conf) => {
   const openapiDoc = await parseFromUri(conf.openApiFilePath, conf.jectOptions);
@@ -114,6 +117,30 @@ var createEndpoints = (express2, method, urls, config) => {
     express2[method.toLowerCase()](url, executeHandler(endpoint, config));
   });
 };
+
+// src/core-plugins/use-glob.ts
+import { glob } from "tinyglobby";
+var useGlobLoader = (path) => ({
+  async beforeRouting() {
+    const files = await glob([path, "!**/*.test.ts"], {
+      expandDirectories: true,
+      onlyFiles: true
+    });
+    await Promise.all(
+      files.map((file) => import(file))
+    );
+  }
+});
+
+// src/core-plugins/use-custom-handlers.ts
+var useCustomHandlers = useGlobLoader("src/**/*.handler.ts");
+
+// src/core-plugins/use-eventify.ts
+var useEventify = useGlobLoader("src/**/*.events.ts");
 export {
-  createHttpServer
+  createHttpServer,
+  registerEndpointHandler,
+  useCustomHandlers,
+  useEventify,
+  useGlobLoader
 };

@@ -1,6 +1,6 @@
 {
   "name": "serveify-openapi",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Turn your openapi specification into an actual server",
   "keywords": [
     "serveify",
@@ -38,7 +38,8 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "json-ject": "^1.0.7"
+    "json-ject": "^1.0.7",
+    "tinyglobby": "^0.2.17"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

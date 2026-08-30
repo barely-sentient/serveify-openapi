@@ -54,7 +54,7 @@ export const executeHandler = (endpoint: Endpoint, config: CreateServerConfig) =
             }
             result = {
                 status: 'failed', 
-                message: error
+                message: (error as Error).message ?? error
             }
         }
 
