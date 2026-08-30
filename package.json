@@ -1,6 +1,6 @@
 {
   "name": "serveify-openapi",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Turn your openapi specification into an actual server",
   "keywords": [
     "serveify",

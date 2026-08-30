@@ -130,7 +130,7 @@ function registerRoute(app, method, path, handler) {
 var createHttpServer = async (config) => {
   const app = express();
   app.use(express.json());
-  const spec = await parseFromUri(config.openApiFilePath);
+  const spec = await parseFromUri(config.openApiFilePath, config.jectOptions);
   if (!spec || typeof spec !== "object" || !("paths" in spec)) {
     throw new Error("Failed to parse OpenAPI spec: Invalid structure or missing 'paths'");
   }

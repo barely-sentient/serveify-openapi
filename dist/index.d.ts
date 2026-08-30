@@ -1,3 +1,4 @@
+import { JectOptions } from 'json-ject';
 import express, { Request } from 'express';
 
 /**
@@ -81,6 +82,10 @@ type CreateServerConfig<TContext = unknown> = {
      * The network port on which the standard HTTP server will listen for incoming unencrypted traffic.
      */
     httpPort: number;
+    /**
+     * Passthrough to ject
+     */
+    jectOptions: JectOptions;
 };
 
 /**
