@@ -147,10 +147,14 @@ var useCustomHandlers = useGlobLoader("./**/*.handler.ts");
 
 // src/core-plugins/use-eventify.ts
 var useEventify = useGlobLoader("./**/*.events.ts");
+
+// src/core-plugins/use-permissify.ts
+var usePermissify = useGlobLoader("./**/*.permissions.ts");
 export {
   createHttpServer,
   registerEndpointHandler,
   useCustomHandlers,
   useEventify,
-  useGlobLoader
+  useGlobLoader,
+  usePermissify
 };

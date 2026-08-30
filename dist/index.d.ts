@@ -116,4 +116,6 @@ declare const useEventify: ServerPlugin;
  */
 declare const useGlobLoader: (path: string) => ServerPlugin;
 
-export { type CreateServerConfig, type SSLConfig, type ServerPlugin, createHttpServer, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader };
+declare const usePermissify: ServerPlugin;
+
+export { type CreateServerConfig, type SSLConfig, type ServerPlugin, createHttpServer, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader, usePermissify };
