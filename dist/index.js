@@ -74,11 +74,28 @@ var registerEndpointHandler = (method, path, handler) => {
 var getRequestSchemaForEndpoint;
 var getResponseSchemaForEndpoint;
 var toOpenApiPath = (path) => path.replace(/:([^/]+)/g, "{$1}");
+var isParamSegment = (seg) => seg.startsWith(":") || seg.startsWith("{") && seg.endsWith("}");
+var isPathMatch = (a, b) => {
+  const aSegs = a.split("/");
+  const bSegs = b.split("/");
+  if (aSegs.length !== bSegs.length) return false;
+  for (let i = 0; i < aSegs.length; i++) {
+    if (aSegs[i] === bSegs[i]) continue;
+    if (isParamSegment(aSegs[i]) || isParamSegment(bSegs[i])) continue;
+    return false;
+  }
+  return true;
+};
 var resolveOperation = (doc, method, url) => {
   const lowerMethod = method.toLowerCase();
   const candidates = [url, toOpenApiPath(url), toExpressPath(url)];
   for (const candidate of candidates) {
     const op = doc?.paths?.[candidate]?.[lowerMethod];
+    if (op) return op;
+  }
+  for (const [openApiPath, methods] of Object.entries(doc?.paths ?? {})) {
+    if (!isPathMatch(url, openApiPath)) continue;
+    const op = methods?.[lowerMethod];
     if (op) return op;
   }
   return void 0;

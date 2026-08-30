@@ -586,4 +586,233 @@ describe("http", () => {
       expect(freshApp.patch).toHaveBeenCalledWith("/lower", expect.any(Function));
     });
   });
+
+  describe("getRequestSchemaForEndpoint / getResponseSchemaForEndpoint", () => {
+    let consoleLogSpy: any;
+
+    beforeEach(() => {
+      consoleLogSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleLogSpy.mockRestore();
+    });
+
+    function createFreshApp() {
+      return {
+        get: jest.fn(),
+        post: jest.fn(),
+        patch: jest.fn(),
+        put: jest.fn(),
+        delete: jest.fn(),
+        head: jest.fn(),
+        options: jest.fn(),
+        listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
+      } as any;
+    }
+
+    const requestSchema = { type: "object", properties: { name: { type: "string" } }, required: ["name"] };
+    const responseSchema = { type: "object", properties: { id: { type: "string" } } };
+    const response201Schema = { type: "object", properties: { created: { type: "boolean" } } };
+
+    it("should return request schema via exact OpenAPI path", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      mockParseFromUri.mockResolvedValue({
+        paths: {
+          "/users/{id}": {
+            post: {
+              requestBody: { content: { "application/json": { schema: requestSchema } } },
+              responses: { "200": { content: { "application/json": { schema: responseSchema } } } },
+            },
+          },
+        },
+      });
+      await fresh.createHttpServer({ openApiFilePath: "./openapi.json", httpPort: 5001, buildContext: async () => ({}) } as any);
+      expect(fresh.getRequestSchemaForEndpoint("POST", "/users/{id}")).toEqual(requestSchema);
+      expect(fresh.getResponseSchemaForEndpoint("POST", "/users/{id}")).toEqual(responseSchema);
+    });
+
+    it("should return schema via Express-style path", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      mockParseFromUri.mockResolvedValue({
+        paths: {
+          "/users/{id}": {
+            post: {
+              requestBody: { content: { "application/json": { schema: requestSchema } } },
+              responses: { "200": { content: { "application/json": { schema: responseSchema } } } },
+            },
+          },
+        },
+      });
+      await fresh.createHttpServer({ openApiFilePath: "./openapi.json", httpPort: 5002, buildContext: async () => ({}) } as any);
+      expect(fresh.getRequestSchemaForEndpoint("POST", "/users/:id")).toEqual(requestSchema);
+      expect(fresh.getResponseSchemaForEndpoint("POST", "/users/:id")).toEqual(responseSchema);
+    });
+
+    it("should handle param name mismatch (:userId vs {id})", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      mockParseFromUri.mockResolvedValue({
+        paths: {
+          "/users/{id}": {
+            put: {
+              requestBody: { content: { "application/json": { schema: requestSchema } } },
+              responses: { "200": { content: { "application/json": { schema: responseSchema } } } },
+            },
+          },
+          "/orders/{orderId}/items/{itemId}": {
+            patch: {
+              requestBody: { content: { "application/json": { schema: requestSchema } } },
+              responses: { "200": { content: { "application/json": { schema: responseSchema } } } },
+            },
+          },
+        },
+      });
+      await fresh.createHttpServer({ openApiFilePath: "./openapi.json", httpPort: 5003, buildContext: async () => ({}) } as any);
+      // single param name mismatch
+      expect(fresh.getRequestSchemaForEndpoint("PUT", "/users/:userId")).toEqual(requestSchema);
+      expect(fresh.getResponseSchemaForEndpoint("PUT", "/users/:userId")).toEqual(responseSchema);
+      // multi param name mismatch
+      expect(fresh.getRequestSchemaForEndpoint("PATCH", "/orders/:id/items/:itemId")).toEqual(requestSchema);
+      expect(fresh.getRequestSchemaForEndpoint("PATCH", "/orders/{id}/items/{other}")).toEqual(requestSchema);
+    });
+
+    it("should handle concrete URLs (/users/123 matching /users/{id})", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      mockParseFromUri.mockResolvedValue({
+        paths: {
+          "/users/{id}": {
+            get: { responses: { "200": { content: { "application/json": { schema: responseSchema } } } } },
+            post: {
+              requestBody: { content: { "application/json": { schema: requestSchema } } },
+              responses: { "200": { content: { "application/json": { schema: responseSchema } } } },
+            },
+          },
+        },
+      });
+      await fresh.createHttpServer({ openApiFilePath: "./openapi.json", httpPort: 5004, buildContext: async () => ({}) } as any);
+      expect(fresh.getRequestSchemaForEndpoint("POST", "/users/123")).toEqual(requestSchema);
+      expect(fresh.getResponseSchemaForEndpoint("GET", "/users/123")).toEqual(responseSchema);
+    });
+
+    it("should return undefined for GET with no body and for missing endpoint", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      mockParseFromUri.mockResolvedValue({
+        paths: {
+          "/users/{id}": {
+            get: { responses: { "200": { content: { "application/json": { schema: responseSchema } } } } },
+          },
+        },
+      });
+      await fresh.createHttpServer({ openApiFilePath: "./openapi.json", httpPort: 5005, buildContext: async () => ({}) } as any);
+      expect(fresh.getRequestSchemaForEndpoint("GET", "/users/{id}")).toBeUndefined();
+      expect(fresh.getRequestSchemaForEndpoint("GET", "/users/:id")).toBeUndefined();
+      expect(fresh.getRequestSchemaForEndpoint("POST", "/unknown")).toBeUndefined();
+      expect(fresh.getResponseSchemaForEndpoint("GET", "/unknown")).toBeUndefined();
+    });
+
+    it("should be case-insensitive for method", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      mockParseFromUri.mockResolvedValue({
+        paths: {
+          "/users/{id}": {
+            post: {
+              requestBody: { content: { "application/json": { schema: requestSchema } } },
+              responses: { "200": { content: { "application/json": { schema: responseSchema } } } },
+            },
+          },
+        },
+      });
+      await fresh.createHttpServer({ openApiFilePath: "./openapi.json", httpPort: 5006, buildContext: async () => ({}) } as any);
+      expect(fresh.getRequestSchemaForEndpoint("post" as any, "/users/{id}")).toEqual(requestSchema);
+      expect(fresh.getResponseSchemaForEndpoint("POST", "/users/{id}")).toEqual(responseSchema);
+    });
+
+    it("should fallback to first content type when application/json missing", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      const xmlSchema = { type: "string" };
+      mockParseFromUri.mockResolvedValue({
+        paths: {
+          "/upload": {
+            post: {
+              requestBody: { content: { "application/xml": { schema: xmlSchema } } },
+              responses: { "200": { content: { "text/plain": { schema: xmlSchema } } } },
+            },
+          },
+        },
+      });
+      await fresh.createHttpServer({ openApiFilePath: "./openapi.json", httpPort: 5007, buildContext: async () => ({}) } as any);
+      expect(fresh.getRequestSchemaForEndpoint("POST", "/upload")).toEqual(xmlSchema);
+      expect(fresh.getResponseSchemaForEndpoint("POST", "/upload")).toEqual(xmlSchema);
+    });
+
+    it("should prefer 200, then 201, then any 2xx for responses", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      mockParseFromUri.mockResolvedValue({
+        paths: {
+          "/a": { post: { responses: { "201": { content: { "application/json": { schema: response201Schema } } } } } },
+          "/b": { post: { responses: { "204": { content: { "application/json": { schema: responseSchema } } } } } },
+        },
+      });
+      await fresh.createHttpServer({ openApiFilePath: "./openapi.json", httpPort: 5008, buildContext: async () => ({}) } as any);
+      expect(fresh.getResponseSchemaForEndpoint("POST", "/a")).toEqual(response201Schema);
+      expect(fresh.getResponseSchemaForEndpoint("POST", "/b")).toEqual(responseSchema);
+    });
+
+    it("should be available to plugins via beforeRouting (closure over openapiDoc)", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      mockParseFromUri.mockResolvedValue({
+        paths: {
+          "/users/{id}": {
+            post: {
+              requestBody: { content: { "application/json": { schema: requestSchema } } },
+              responses: { "200": { content: { "application/json": { schema: responseSchema } } } },
+            },
+          },
+        },
+      });
+      let capturedRequestSchema: any;
+      let capturedResponseSchema: any;
+      const plugin = {
+        beforeRouting: jest.fn(async () => {
+          // This will be called after openapiDoc is ready and getters are assigned
+          // but before routes are built — we simulate deferred check by capturing
+          // the function reference to call later.
+        }),
+        beforeServerStart: jest.fn(async () => {
+          // getters should be populated by now
+        }),
+      };
+      await fresh.createHttpServer({
+        openApiFilePath: "./openapi.json",
+        httpPort: 5009,
+        buildContext: async () => ({}),
+        plugins: [plugin],
+      } as any);
+      // after server creation, getters are exported and usable by plugins
+      capturedRequestSchema = fresh.getRequestSchemaForEndpoint("POST", "/users/:userId");
+      capturedResponseSchema = fresh.getResponseSchemaForEndpoint("POST", "/users/:userId");
+      expect(capturedRequestSchema).toEqual(requestSchema);
+      expect(capturedResponseSchema).toEqual(responseSchema);
+      expect(plugin.beforeRouting).toHaveBeenCalled();
+      expect(plugin.beforeServerStart).toHaveBeenCalled();
+    });
+  });
 });

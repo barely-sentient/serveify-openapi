@@ -42,12 +42,34 @@ export let getResponseSchemaForEndpoint: (method: HttpMethod, url: string) => an
 
 const toOpenApiPath = (path: string) => path.replace(/:([^/]+)/g, '{$1}');
 
+const isParamSegment = (seg: string) => seg.startsWith(':') || (seg.startsWith('{') && seg.endsWith('}'));
+
+const isPathMatch = (a: string, b: string) => {
+    const aSegs = a.split('/');
+    const bSegs = b.split('/');
+    if (aSegs.length !== bSegs.length) return false;
+    for (let i = 0; i < aSegs.length; i++) {
+        if (aSegs[i] === bSegs[i]) continue;
+        // either side is a param placeholder -> treat as wildcard (covers :id vs {id} vs {userId} vs concrete 123)
+        if (isParamSegment(aSegs[i]) || isParamSegment(bSegs[i])) continue;
+        return false;
+    }
+    return true;
+};
+
 const resolveOperation = (doc: any, method: HttpMethod, url: string) => {
     const lowerMethod = method.toLowerCase();
-    // try as-is (OpenAPI style: /users/{id}), then Express style conversion, and vice versa
+    // 1) fast exact + syntax-converted exact matches (covers same param names)
     const candidates = [url, toOpenApiPath(url), toExpressPath(url)];
     for (const candidate of candidates) {
         const op = doc?.paths?.[candidate]?.[lowerMethod];
+        if (op) return op;
+    }
+    // 2) structural match: handles :id vs {userId} name mismatch and concrete urls like /users/123
+    //    param segments are wildcards regardless of name or syntax
+    for (const [openApiPath, methods] of Object.entries((doc as any)?.paths ?? {})) {
+        if (!isPathMatch(url, openApiPath)) continue;
+        const op = (methods as any)?.[lowerMethod];
         if (op) return op;
     }
     return undefined;
