@@ -1,6 +1,5 @@
 import { glob } from "tinyglobby";
 import { ServerPlugin } from "../types/plugin-sdk.js";
-import os from 'os'
 
 /**
  * Load files ahead of routing being available.
@@ -24,7 +23,7 @@ export const useGlobLoader = (path: string): ServerPlugin => ({
 const resolveAndImport = async (file: string) => {
     let path = `${process.cwd()}/${file}`
 
-    if (os.platform() == 'win32') {
+    if (path[1] === ':') {
         path = path.substring(2);
     }
 

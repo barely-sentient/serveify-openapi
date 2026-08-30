@@ -165,7 +165,6 @@ var createEndpoints = (express2, method, urls, config) => {
 
 // src/core-plugins/use-glob.ts
 import { glob } from "tinyglobby";
-import os from "os";
 var useGlobLoader = (path) => ({
   async beforeRouting() {
     const files = await glob([path, "!**/*.test.ts"], {
@@ -179,7 +178,7 @@ var useGlobLoader = (path) => ({
 });
 var resolveAndImport = async (file) => {
   let path = `${process.cwd()}/${file}`;
-  if (os.platform() == "win32") {
+  if (path[1] === ":") {
     path = path.substring(2);
   }
   path = path.replaceAll("\\", "/");
