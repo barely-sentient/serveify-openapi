@@ -47,5 +47,5 @@ export type CreateServerConfig<TContext = unknown> = {
     /**
      * Passthrough to ject
      */
-    jectOptions: JectOptions
+    jectOptions?: JectOptions
 }

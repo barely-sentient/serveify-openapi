@@ -1,5 +1,28 @@
-import { JectOptions } from 'json-ject';
 import express, { Request } from 'express';
+import { JectOptions } from 'json-ject';
+
+/**
+ * Valid HTTP methods supported by the application router.
+ *
+ * @public
+ */
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
+/**
+ * Route handler callback function signature.
+ *
+ * Accepts the standard Express request object and a request-scoped session context,
+ * returning a Promise that resolves to the route payload response.
+ *
+ * @template TContext - The request-scoped context type. Defaults to `unknown`.
+ * @template TResult - The response body type returned by the handler. Defaults to `unknown`.
+ *
+ * @param req - The raw Express Request object for the incoming request.
+ * @param sessionCtx - The request-scoped session context constructed for the request.
+ * @returns A promise resolving to the data payload to send back to the client.
+ *
+ * @public
+ */
+type Handler = (req: Request, sessionCtx: unknown) => Promise<unknown>;
 
 /**
  * Defines a plugin interface for extending server behavior across key lifecycle events.
@@ -85,112 +108,7 @@ type CreateServerConfig<TContext = unknown> = {
     /**
      * Passthrough to ject
      */
-    jectOptions: JectOptions;
-};
-
-/**
- * Valid HTTP methods supported by the application router.
- *
- * @public
- */
-type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
-/**
- * Route handler callback function signature.
- *
- * Accepts the standard Express request object and a request-scoped session context,
- * returning a Promise that resolves to the route payload response.
- *
- * @template TContext - The request-scoped context type. Defaults to `unknown`.
- * @template TResult - The response body type returned by the handler. Defaults to `unknown`.
- *
- * @param req - The raw Express Request object for the incoming request.
- * @param sessionCtx - The request-scoped session context constructed for the request.
- * @returns A promise resolving to the data payload to send back to the client.
- *
- * @public
- */
-type Handler = (req: Request, sessionCtx: unknown) => Promise<unknown>;
-/**
- * Central routing registry managing handler registration, spec compliance auditing,
- * and endpoint resolution for the HTTP server framework.
- *
- * @public
- */
-declare const Routes: {
-    /**
-     * Registers a custom request handler for a given HTTP method and route path.
-     *
-     * Overwrites any existing handler or default placeholder bound to the target route
-     * and marks the route as implemented in the spec audit log.
-     *
-     * @param method - The target HTTP verb.
-     * @param path - The OpenAPI-compatible route path (e.g., `"/users/{userId}"`).
-     * @param handler - The custom domain logic handler function.
-     *
-     * @example
-     * ```typescript
-     * Routes.setRequestHandler("GET", "/health", async (req, ctx) => {
-     *   return { status: "ok" }
-     * })
-     * ```
-     */
-    setRequestHandler(method: HttpMethod, path: string, handler: Handler): void;
-    /**
-     * Retrieves the currently registered handler for an HTTP method and path combination.
-     *
-     * @param method - The target HTTP verb.
-     * @param path - The registered route path.
-     * @returns The registered {@link Handler} callback, or `undefined` if no handler exists for the route.
-     */
-    getRequestHandler(method: HttpMethod, path: string): Handler | undefined;
-    /**
-     * Returns the underlying nested route map containing all registered HTTP methods, paths, and handlers.
-     *
-     * @returns The complete map of HTTP methods to path-handler entries.
-     */
-    getRoutes(): Map<HttpMethod, Map<string, Handler>>;
-    /**
-     * Audits the registry and returns a list of spec-declared routes that still lack a custom handler.
-     *
-     * Routes marked via {@link Routes.markAsDefault} remain in this list until a custom handler
-     * is attached via {@link Routes.setRequestHandler}.
-     *
-     * @returns An array of objects describing unimplemented routes, each containing `method` and `path`.
-     *
-     * @example
-     * ```typescript
-     * const missing = Routes.getDefaultHandlers()
-     * missing.forEach(({ method, path }) => {
-     *   console.warn(`Missing handler for ${method} ${path}`)
-     * })
-     * ```
-     */
-    getDefaultHandlers(): {
-        method: HttpMethod;
-        path: string;
-    }[];
-    /**
-     * Registers an OpenAPI specification endpoint into the default tracker with a `503 Not Implemented` fallback handler.
-     *
-     * Called during server initialization to populate the expected API surface before user routes are attached.
-     *
-     * @param method - The HTTP method declared in the specification.
-     * @param path - The path declared in the specification.
-     */
-    markAsDefault(method: HttpMethod, path: string): void;
-    /**
-     * Resets the entire routing registry, removing all registered route handlers and pending default routes.
-     *
-     * Useful for tearing down state between automated test suites.
-     *
-     * @example
-     * ```typescript
-     * beforeEach(() => {
-     *   Routes.clear()
-     * })
-     * ```
-     */
-    clear(): void;
+    jectOptions?: JectOptions;
 };
 
 /**
@@ -230,14 +148,19 @@ interface RefactoredServerConfig<TContext> extends CreateServerConfig<TContext> 
  * Asynchronously builds, configures, and hydrates an enterprise-ready Express HTTP application
  * based on an OpenAPI 3.x specification file and registered route handlers.
  *
+ * Handlers must be registered via `Routes.setRequestHandler` **before** calling this factory.
+ * Pre-registered handlers are preserved and not overwritten by the spec audit.
+ *
  * ### Execution Pipeline:
  * 1. **Initialization:** Instantiates an Express application and mounts global `express.json()` middleware.
  * 2. **Specification Ingestion:** Parses the OpenAPI document referenced at `config.openApiFilePath` via `json-ject`.
  * 3. **Spec Audit:** Iterates through `paths -> methods` in the specification to mark expected route handlers.
+ *    Existing handlers registered before server start are preserved.
  * 4. **Plugin Bootstrap:** Invokes `beforeServerStart()` on all registered plugins sequentially.
  * 5. **Handler Audit:** Compares registered handlers against the spec defaults and logs unhandled spec endpoints.
  * 6. **Route Mount:** Normalizes paths and wraps each registered route in a lifecycle pipeline (`createContext` $\rightarrow$ `preRequest` $\rightarrow$ `handler` $\rightarrow$ `postRequest`).
  * 7. **Error Catch & Fallbacks:** Intercepts handler exceptions with standardized JSON errors and appends a `404 Not Found` catch-all route.
+ * 8. **Listen:** Starts the HTTP (and optional HTTPS) listener internally after all hooks complete.
  *
  * @template TContext - The application-specific session/request context type passed through plugins and handlers.
  *
@@ -249,19 +172,31 @@ interface RefactoredServerConfig<TContext> extends CreateServerConfig<TContext> 
  *
  * @example
  * ```typescript
- * import { createHttpServer } from "./server-factory.js"
+ * import { createHttpServer, setRequestHandler } from "serveify-openapi"
+ *
+ * setRequestHandler("GET", "/users/{id}", async (req, ctx) => ({ id: req.params.id }))
  *
  * const app = await createHttpServer({
  *   openApiFilePath: "./spec/openapi.json",
+ *   httpPort: 3000,
  *   createContext: (req) => ({ traceId: req.header("x-trace-id") }),
  *   plugins: [ loggingPlugin, authPlugin ]
  * })
- *
- * app.listen(3000, () => console.log("Server listening on port 3000"))
+ * // server is already listening internally
  * ```
  *
  * @public
  */
 declare const createHttpServer: <TContext = unknown>(config: RefactoredServerConfig<TContext>) => Promise<express.Application>;
 
-export { type CreateServerConfig, type Handler, type HttpMethod, Routes, type SSLConfig, type ServerPlugin, createHttpServer };
+/**
+ * Public routing facade — only `setRequestHandler` is exposed to consumers.
+ * Internal helpers (`markAsDefault`, `getRequestHandler`, `getRoutes`, `getDefaultHandlers`, `clear`)
+ * remain available via direct `src/routes.js` imports for testing but are not re-exported here.
+ */
+declare const setRequestHandler: (method: HttpMethod, path: string, handler: Handler) => void;
+declare const Routes: {
+    readonly setRequestHandler: (method: HttpMethod, path: string, handler: Handler) => void;
+};
+
+export { type CreateServerConfig, type Handler, type HttpMethod, Routes, type SSLConfig, type ServerPlugin, createHttpServer, setRequestHandler };

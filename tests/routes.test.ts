@@ -149,12 +149,12 @@ describe("Routes", () => {
       expect(Routes.getDefaultHandlers()).toHaveLength(1)
     })
 
-    it("overwrites a previously setRequestHandler handler", async () => {
+    it("preserves a previously setRequestHandler handler when markAsDefault is called", async () => {
       Routes.setRequestHandler("PUT", "/conflict", async () => "custom")
       Routes.markAsDefault("PUT", "/conflict")
       const handler = Routes.getRequestHandler("PUT", "/conflict")!
-      await expect(handler({} as any, {})).rejects.toMatchObject({ status: 503 })
-      expect(Routes.getDefaultHandlers()).toHaveLength(1)
+      await expect(handler({} as any, {})).resolves.toBe("custom")
+      expect(Routes.getDefaultHandlers()).toHaveLength(0)
     })
   })
 

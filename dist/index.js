@@ -1,8 +1,11 @@
 // src/routes.ts
 var routeMap = /* @__PURE__ */ new Map();
 var defaultHandlers = /* @__PURE__ */ new Set();
+function normalizePath(path) {
+  return path.replace(/:([^/]+)/g, "{$1}");
+}
 function routeKey(method, path) {
-  return `${method} ${path}`;
+  return `${method} ${normalizePath(path)}`;
 }
 function getMethodMap(method) {
   let methodMap = routeMap.get(method);
@@ -31,9 +34,10 @@ var Routes = {
    * ```
    */
   setRequestHandler(method, path, handler) {
+    const normalized = normalizePath(path);
     const methodMap = getMethodMap(method);
-    methodMap.set(path, handler);
-    defaultHandlers.delete(routeKey(method, path));
+    methodMap.set(normalized, handler);
+    defaultHandlers.delete(routeKey(method, normalized));
   },
   /**
    * Retrieves the currently registered handler for an HTTP method and path combination.
@@ -43,7 +47,7 @@ var Routes = {
    * @returns The registered {@link Handler} callback, or `undefined` if no handler exists for the route.
    */
   getRequestHandler(method, path) {
-    return routeMap.get(method)?.get(path);
+    return routeMap.get(method)?.get(normalizePath(path));
   },
   /**
    * Returns the underlying nested route map containing all registered HTTP methods, paths, and handlers.
@@ -80,17 +84,28 @@ var Routes = {
     return missing;
   },
   /**
-   * Registers an OpenAPI specification endpoint into the default tracker with a `503 Not Implemented` fallback handler.
-   *
-   * Called during server initialization to populate the expected API surface before user routes are attached.
-   *
-   * @param method - The HTTP method declared in the specification.
-   * @param path - The path declared in the specification.
-   */
+    * Registers an OpenAPI specification endpoint into the default tracker with a `503 Not Implemented` fallback handler.
+    *
+    * Called during server initialization to populate the expected API surface before user routes are attached.
+    * If a handler was already registered for the route (e.g., via pre-registration before server start),
+    * the existing handler is preserved and the route is not marked as missing.
+    *
+    * @param method - The HTTP method declared in the specification.
+    * @param path - The path declared in the specification.
+    * @internal
+    */
   markAsDefault(method, path) {
-    defaultHandlers.add(routeKey(method, path));
+    const normalized = normalizePath(path);
+    const key = routeKey(method, normalized);
+    if (routeMap.get(method)?.has(normalized)) {
+      return;
+    }
+    if (defaultHandlers.has(key)) {
+      return;
+    }
+    defaultHandlers.add(key);
     const methodMap = getMethodMap(method);
-    methodMap.set(path, async () => {
+    methodMap.set(normalized, async () => {
       throw { status: 503, message: "Not implemented" };
     });
   },
@@ -115,6 +130,7 @@ var Routes = {
 // src/http.ts
 import express from "express";
 import { parseFromUri } from "json-ject";
+var activeServer = null;
 function openApiPathToExpress(path) {
   return path.replace(/\{([^}]+)\}/g, ":$1");
 }
@@ -158,7 +174,7 @@ Missing ${missing.length} handler(s):`);
     console.log();
   }
   for (const [method, pathMap] of Routes.getRoutes()) {
-    for (const [openApiPath] of pathMap) {
+    for (const [openApiPath, handler] of pathMap) {
       const ep = openApiPathToExpress(openApiPath);
       registerRoute(app, method, ep, async (req, res) => {
         try {
@@ -168,12 +184,13 @@ Missing ${missing.length} handler(s):`);
               await plugin.preRequest(req, sessionCtx);
             }
           }
-          const handler = Routes.getRequestHandler(method, openApiPath);
-          if (!handler) {
+          const currentHandler = Routes.getRequestHandler(method, openApiPath);
+          const effectiveHandler = currentHandler ?? handler;
+          if (!effectiveHandler) {
             res.status(404).json({ error: "Not found", code: "NOT_FOUND" });
             return;
           }
-          const result = await handler(req, sessionCtx);
+          const result = await effectiveHandler(req, sessionCtx);
           let finalResult = result;
           for (const plugin of plugins) {
             if (plugin.postRequest) {
@@ -196,9 +213,57 @@ Missing ${missing.length} handler(s):`);
   app.use((_req, res) => {
     res.status(404).json({ error: "Not found", code: "NOT_FOUND" });
   });
+  if (activeServer) {
+    await new Promise((resolve) => {
+      try {
+        activeServer.close(() => resolve());
+      } catch {
+        resolve();
+      }
+      setTimeout(resolve, 100);
+    });
+    activeServer = null;
+  }
+  const tryListen = (port) => new Promise((resolve, reject) => {
+    const server = app.listen(port, () => {
+      console.log(`Running OpenAPI schema server`);
+      console.log(`http://localhost:${server.address()?.port ?? port}`);
+      if (config.ssl) {
+        console.log(`https://localhost:${config.ssl.httpsPort}`);
+      }
+      resolve(server);
+    });
+    server.on("error", (err) => {
+      if (err.code === "EADDRINUSE" && port !== 0) {
+        try {
+          server.close();
+        } catch {
+        }
+        const fallback = app.listen(0, () => {
+          const addr = fallback.address();
+          console.log(`Running OpenAPI schema server (fallback)`);
+          console.log(`http://localhost:${addr?.port}`);
+          resolve(fallback);
+        });
+        fallback.on("error", reject);
+      } else {
+        reject(err);
+      }
+    });
+  });
+  activeServer = await tryListen(config.httpPort);
+  activeServer.unref();
+  app.__server = activeServer;
   return app;
 };
+
+// src/index.ts
+var setRequestHandler = Routes.setRequestHandler.bind(Routes);
+var Routes2 = {
+  setRequestHandler
+};
 export {
-  Routes,
-  createHttpServer
+  Routes2 as Routes,
+  createHttpServer,
+  setRequestHandler
 };

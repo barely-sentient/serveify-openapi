@@ -43,6 +43,18 @@ const routeMap = new Map<HttpMethod, Map<string, Handler>>()
 const defaultHandlers = new Set<string>()
 
 /**
+ * Normalises a route path to canonical OpenAPI form so that Express (`:param`)
+ * and OpenAPI (`{param}`) notations map to the same internal key.
+ *
+ * @param path - Raw path in either notation.
+ * @returns Canonical OpenAPI path (e.g., `"/users/:id"` -> `"/users/{id}"`).
+ * @internal
+ */
+function normalizePath(path: string): string {
+  return path.replace(/:([^/]+)/g, "{$1}")
+}
+
+/**
  * Generates a unique composite cache key combining an HTTP method and route path.
  *
  * @param method - The HTTP method verb.
@@ -52,7 +64,7 @@ const defaultHandlers = new Set<string>()
  * @internal
  */
 function routeKey(method: HttpMethod, path: string): string {
-  return `${method} ${path}`
+  return `${method} ${normalizePath(path)}`
 }
 
 /**
@@ -97,9 +109,10 @@ export const Routes = {
    * ```
    */
   setRequestHandler(method: HttpMethod, path: string, handler: Handler): void {
+    const normalized = normalizePath(path)
     const methodMap = getMethodMap(method)
-    methodMap.set(path, handler)
-    defaultHandlers.delete(routeKey(method, path))
+    methodMap.set(normalized, handler)
+    defaultHandlers.delete(routeKey(method, normalized))
   },
 
   /**
@@ -110,7 +123,7 @@ export const Routes = {
    * @returns The registered {@link Handler} callback, or `undefined` if no handler exists for the route.
    */
   getRequestHandler(method: HttpMethod, path: string): Handler | undefined {
-    return routeMap.get(method)?.get(path)
+    return routeMap.get(method)?.get(normalizePath(path))
   },
 
   /**
@@ -150,17 +163,29 @@ export const Routes = {
   },
 
   /**
-   * Registers an OpenAPI specification endpoint into the default tracker with a `503 Not Implemented` fallback handler.
-   *
-   * Called during server initialization to populate the expected API surface before user routes are attached.
-   *
-   * @param method - The HTTP method declared in the specification.
-   * @param path - The path declared in the specification.
-   */
+    * Registers an OpenAPI specification endpoint into the default tracker with a `503 Not Implemented` fallback handler.
+    *
+    * Called during server initialization to populate the expected API surface before user routes are attached.
+    * If a handler was already registered for the route (e.g., via pre-registration before server start),
+    * the existing handler is preserved and the route is not marked as missing.
+    *
+    * @param method - The HTTP method declared in the specification.
+    * @param path - The path declared in the specification.
+    * @internal
+    */
   markAsDefault(method: HttpMethod, path: string): void {
-    defaultHandlers.add(routeKey(method, path))
+    const normalized = normalizePath(path)
+    const key = routeKey(method, normalized)
+    // Preserve pre-registered handlers — do not overwrite
+    if (routeMap.get(method)?.has(normalized)) {
+      return
+    }
+    if (defaultHandlers.has(key)) {
+      return
+    }
+    defaultHandlers.add(key)
     const methodMap = getMethodMap(method)
-    methodMap.set(path, async () => {
+    methodMap.set(normalized, async () => {
       throw { status: 503, message: "Not implemented" }
     })
   },
