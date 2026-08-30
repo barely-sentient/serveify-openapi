@@ -1,5 +1,6 @@
 import { Request, Response } from "express"
 import { CreateServerConfig } from "./types/create-server-config.js"
+import { getRequestSchemaForEndpoint, getResponseSchemaForEndpoint, HttpMethod } from "./http.js"
 
 export type Endpoint<TContext = unknown> = {
     handler: (req: Request, session: TContext) => Promise<unknown>
@@ -54,12 +55,26 @@ export const executeHandler = (endpoint: Endpoint, config: CreateServerConfig, m
         
         }catch(error)
         {
-            if ((error as any).status_code) {
-                response.statusCode = (error as any).status_code;
-            }
-            result = {
-                status: 'failed', 
-                message: (error as Error).message ?? error
+            if ((error as any).errors) {
+                response.statusCode = 500;
+                result = {
+                    status: 'failed',
+                    message: (error as Error).message ?? error,
+                    errors: (error as any).errors, 
+                    response: result,
+                    schema: {
+                        request: getRequestSchemaForEndpoint(request.method.toUpperCase() as HttpMethod, request.route),
+                        response: getResponseSchemaForEndpoint(request.method.toUpperCase() as HttpMethod, request.route),
+                    }
+                };
+            } else {
+                if ((error as any).status_code) {
+                    response.statusCode = (error as any).status_code;
+                }
+                result = {
+                    status: 'failed', 
+                    message: (error as Error).message ?? error
+                }
             }
         }
 

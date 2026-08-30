@@ -35,13 +35,27 @@ var executeHandler = (endpoint, config, matchingRoute) => {
       );
       response.statusCode = 200;
     } catch (error) {
-      if (error.status_code) {
-        response.statusCode = error.status_code;
+      if (error.errors) {
+        response.statusCode = 500;
+        result = {
+          status: "failed",
+          message: error.message ?? error,
+          errors: error.errors,
+          response: result,
+          schema: {
+            request: getRequestSchemaForEndpoint(request.method.toUpperCase(), request.route),
+            response: getResponseSchemaForEndpoint(request.method.toUpperCase(), request.route)
+          }
+        };
+      } else {
+        if (error.status_code) {
+          response.statusCode = error.status_code;
+        }
+        result = {
+          status: "failed",
+          message: error.message ?? error
+        };
       }
-      result = {
-        status: "failed",
-        message: error.message ?? error
-      };
     }
     response.setHeader("Content-Type", "application/json");
     response.end(JSON.stringify(result));
@@ -101,13 +115,61 @@ var resolveOperation = (doc, method, url) => {
   }
   return void 0;
 };
+var resolveJsonPointer = (ref, root) => {
+  if (!ref.startsWith("#/")) return void 0;
+  const parts = ref.slice(2).split("/").map((p) => decodeURIComponent(p.replace(/~1/g, "/").replace(/~0/g, "~")));
+  let cur = root;
+  for (const part of parts) {
+    if (cur == null || typeof cur !== "object" || !(part in cur)) return void 0;
+    cur = cur[part];
+  }
+  return cur;
+};
+var dereferenceSchema = (node, root, seen = /* @__PURE__ */ new Set()) => {
+  if (Array.isArray(node)) {
+    return node.map((item) => dereferenceSchema(item, root, seen));
+  }
+  if (node == null || typeof node !== "object") return node;
+  if (typeof node.$ref === "string") {
+    const ref = node.$ref;
+    if (seen.has(ref)) {
+      const target2 = resolveJsonPointer(ref, root);
+      return target2 && typeof target2 === "object" ? { ...target2 } : target2 ?? { ...node };
+    }
+    const target = resolveJsonPointer(ref, root);
+    if (target === void 0) {
+      const { $ref: $ref2, ...siblings2 } = node;
+      const out2 = {};
+      for (const [k, v] of Object.entries(siblings2)) out2[k] = dereferenceSchema(v, root, seen);
+      return Object.keys(out2).length ? { $ref: $ref2, ...out2 } : { $ref: $ref2 };
+    }
+    seen.add(ref);
+    const resolved = dereferenceSchema(target, root, seen);
+    seen.delete(ref);
+    const { $ref, ...siblings } = node;
+    if (Object.keys(siblings).length === 0) return resolved;
+    const dereffedSiblings = {};
+    for (const [k, v] of Object.entries(siblings)) dereffedSiblings[k] = dereferenceSchema(v, root, seen);
+    if (resolved && typeof resolved === "object" && !Array.isArray(resolved)) {
+      return { ...resolved, ...dereffedSiblings };
+    }
+    return dereffedSiblings;
+  }
+  const out = {};
+  for (const [k, v] of Object.entries(node)) {
+    out[k] = dereferenceSchema(v, root, seen);
+  }
+  return out;
+};
 var createHttpServer = async (conf) => {
   const openapiDoc = await parseFromUri(conf.openApiFilePath, conf.jectOptions);
   getRequestSchemaForEndpoint = (method, url) => {
     const operation = resolveOperation(openapiDoc, method, url);
     if (!operation?.requestBody?.content) return void 0;
     const content = operation.requestBody.content;
-    return content["application/json"]?.schema ?? Object.values(content)[0]?.schema;
+    const schema = content["application/json"]?.schema ?? Object.values(content)[0]?.schema;
+    if (!schema) return void 0;
+    return dereferenceSchema(schema, openapiDoc);
   };
   getResponseSchemaForEndpoint = (method, url) => {
     const operation = resolveOperation(openapiDoc, method, url);
@@ -115,7 +177,9 @@ var createHttpServer = async (conf) => {
     if (!responses) return void 0;
     const response = responses["200"] ?? responses["201"] ?? responses["default"] ?? Object.entries(responses).find(([code]) => code.startsWith("2"))?.[1];
     if (!response?.content) return void 0;
-    return response.content["application/json"]?.schema ?? Object.values(response.content)[0]?.schema;
+    const schema = response.content["application/json"]?.schema ?? Object.values(response.content)[0]?.schema;
+    if (!schema) return void 0;
+    return dereferenceSchema(schema, openapiDoc);
   };
   await Promise.all(
     (conf.plugins ?? []).map((plugin) => plugin.beforeRouting?.())

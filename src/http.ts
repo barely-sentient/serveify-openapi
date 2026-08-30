@@ -74,6 +74,57 @@ const resolveOperation = (doc: any, method: HttpMethod, url: string) => {
     return undefined;
 };
 
+const resolveJsonPointer = (ref: string, root: any): any => {
+    if (!ref.startsWith('#/')) return undefined;
+    const parts = ref.slice(2).split('/').map(p => decodeURIComponent(p.replace(/~1/g, '/').replace(/~0/g, '~')));
+    let cur: any = root;
+    for (const part of parts) {
+        if (cur == null || typeof cur !== 'object' || !(part in cur)) return undefined;
+        cur = cur[part];
+    }
+    return cur;
+};
+
+const dereferenceSchema = (node: any, root: any, seen: Set<string> = new Set()): any => {
+    if (Array.isArray(node)) {
+        return node.map(item => dereferenceSchema(item, root, seen));
+    }
+    if (node == null || typeof node !== 'object') return node;
+    if (typeof node.$ref === 'string') {
+        const ref: string = node.$ref;
+        // circular guard
+        if (seen.has(ref)) {
+            const target = resolveJsonPointer(ref, root);
+            // return shallow clone of target without further expansion to break cycle
+            return target && typeof target === 'object' ? { ...target } : target ?? { ...node };
+        }
+        const target = resolveJsonPointer(ref, root);
+        if (target === undefined) {
+            // unresolved ref: return copy without infinite loop, still dereference siblings
+            const { $ref, ...siblings } = node;
+            const out: any = {};
+            for (const [k, v] of Object.entries(siblings)) out[k] = dereferenceSchema(v, root, seen);
+            return Object.keys(out).length ? { $ref, ...out } : { $ref };
+        }
+        seen.add(ref);
+        const resolved = dereferenceSchema(target, root, seen);
+        seen.delete(ref);
+        const { $ref, ...siblings } = node;
+        if (Object.keys(siblings).length === 0) return resolved;
+        const dereffedSiblings: any = {};
+        for (const [k, v] of Object.entries(siblings)) dereffedSiblings[k] = dereferenceSchema(v, root, seen);
+        if (resolved && typeof resolved === 'object' && !Array.isArray(resolved)) {
+            return { ...resolved, ...dereffedSiblings };
+        }
+        return dereffedSiblings;
+    }
+    const out: any = {};
+    for (const [k, v] of Object.entries(node)) {
+        out[k] = dereferenceSchema(v, root, seen);
+    }
+    return out;
+};
+
 export const createHttpServer = async (conf: CreateServerConfig) => {
     
     const openapiDoc = await parseFromUri(conf.openApiFilePath, conf.jectOptions);
@@ -82,7 +133,9 @@ export const createHttpServer = async (conf: CreateServerConfig) => {
         const operation = resolveOperation(openapiDoc, method, url);
         if (!operation?.requestBody?.content) return undefined;
         const content = operation.requestBody.content;
-        return content['application/json']?.schema ?? (Object.values(content as Record<string, any>)[0] as any)?.schema;
+        const schema = content['application/json']?.schema ?? (Object.values(content as Record<string, any>)[0] as any)?.schema;
+        if (!schema) return undefined;
+        return dereferenceSchema(schema, openapiDoc);
     };
 
     getResponseSchemaForEndpoint = (method: HttpMethod, url: string) => {
@@ -92,7 +145,9 @@ export const createHttpServer = async (conf: CreateServerConfig) => {
         const response = responses['200'] ?? responses['201'] ?? responses['default']
             ?? Object.entries(responses).find(([code]) => code.startsWith('2'))?.[1] as any;
         if (!response?.content) return undefined;
-        return response.content['application/json']?.schema ?? (Object.values(response.content as Record<string, any>)[0] as any)?.schema;
+        const schema = response.content['application/json']?.schema ?? (Object.values(response.content as Record<string, any>)[0] as any)?.schema;
+        if (!schema) return undefined;
+        return dereferenceSchema(schema, openapiDoc);
     };
 
     // before the routing starts

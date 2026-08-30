@@ -814,5 +814,103 @@ describe("http", () => {
       expect(plugin.beforeRouting).toHaveBeenCalled();
       expect(plugin.beforeServerStart).toHaveBeenCalled();
     });
+
+    it("should dereference $ref in request/response schemas", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      const User = { type: "object", properties: { id: { type: "string" }, name: { type: "string" } }, required: ["id"] };
+      const Pagination = { type: "object", properties: { page: { type: "integer" }, limit: { type: "integer" } } };
+      const refSchema = {
+        type: "object",
+        required: ["data", "pagination"],
+        properties: {
+          data: { type: "array", items: { $ref: "#/components/schemas/User" } },
+          pagination: { $ref: "#/components/schemas/Pagination" },
+        },
+      };
+      mockParseFromUri.mockResolvedValue({
+        components: { schemas: { User, Pagination } },
+        paths: {
+          "/users": {
+            post: {
+              requestBody: { content: { "application/json": { schema: refSchema } } },
+              responses: { "200": { content: { "application/json": { schema: { $ref: "#/components/schemas/User" } } } } },
+            },
+          },
+        },
+      });
+      await fresh.createHttpServer({ openApiFilePath: "./openapi.json", httpPort: 5010, buildContext: async () => ({}) } as any);
+      const dereffedRequest = fresh.getRequestSchemaForEndpoint("POST", "/users");
+      expect(dereffedRequest).toEqual({
+        type: "object",
+        required: ["data", "pagination"],
+        properties: {
+          data: { type: "array", items: User },
+          pagination: Pagination,
+        },
+      });
+      // response $ref at top-level should be fully resolved
+      expect(fresh.getResponseSchemaForEndpoint("POST", "/users")).toEqual(User);
+      // ensure original doc not mutated and no $ref remains
+      expect(JSON.stringify(dereffedRequest)).not.toContain("$ref");
+    });
+
+    it("should dereference nested and sibling $refs", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      const Address = { type: "object", properties: { city: { type: "string" } } };
+      const UserWithAddress = { type: "object", properties: { address: { $ref: "#/components/schemas/Address" } } };
+      mockParseFromUri.mockResolvedValue({
+        components: { schemas: { Address, UserWithAddress } },
+        paths: {
+          "/nested": {
+            post: {
+              requestBody: {
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      properties: {
+                        user: { $ref: "#/components/schemas/UserWithAddress", description: "a user" },
+                      },
+                    },
+                  },
+                },
+              },
+              responses: { "200": { content: { "application/json": { schema: { type: "string" } } } } },
+            },
+          },
+        },
+      });
+      await fresh.createHttpServer({ openApiFilePath: "./openapi.json", httpPort: 5011, buildContext: async () => ({}) } as any);
+      const result = fresh.getRequestSchemaForEndpoint("POST", "/nested");
+      // $ref with sibling description should merge, and nested $ref to Address should also be resolved
+      expect(result.properties.user).toEqual({
+        type: "object",
+        properties: { address: Address },
+        description: "a user",
+      });
+    });
+
+    it("should not mutate original schema and handle unresolved $ref gracefully", async () => {
+      const fresh = await getFreshHttp();
+      const freshApp = createFreshApp();
+      mockExpress.mockReturnValueOnce(freshApp);
+      const refSchema = { $ref: "#/components/schemas/Missing" };
+      mockParseFromUri.mockResolvedValue({
+        components: { schemas: {} },
+        paths: {
+          "/missing": {
+            get: { responses: { "200": { content: { "application/json": { schema: refSchema } } } } },
+          },
+        },
+      });
+      await fresh.createHttpServer({ openApiFilePath: "./openapi.json", httpPort: 5012, buildContext: async () => ({}) } as any);
+      const result = fresh.getResponseSchemaForEndpoint("GET", "/missing");
+      // unresolved should be returned as-is (still has $ref)
+      expect(result).toEqual({ $ref: "#/components/schemas/Missing" });
+    });
   });
 });
