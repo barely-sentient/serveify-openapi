@@ -2,7 +2,6 @@ import express, { Express, Handler, Request } from "express"
 import { parseFromUri } from "json-ject"
 import { CreateServerConfig } from "./types/create-server-config.js"
 import { Endpoint, executeHandler, useDefaultHandler } from "./handler.js";
-import { ServerPlugin } from "./types/plugin-sdk.js";
 
 const openApiEndpoints: Record<HttpMethod, string[]> = {
     GET: [],
@@ -154,10 +153,10 @@ const createEndpoints = (express: Express, method: HttpMethod, urls: string[], c
 
         if (!endpoint) {
             unhandledEndpoints.push({ method, url })
-            express[method.toLowerCase() as keyof Express](url, executeHandler(useDefaultHandler(), config));
+            express[method.toLowerCase() as keyof Express](url, executeHandler(useDefaultHandler(), config, url));
             return;
         }
-        express[method.toLowerCase() as keyof Express](url, executeHandler(endpoint, config));
+        express[method.toLowerCase() as keyof Express](url, executeHandler(endpoint, config, url));
     });
 }
 

@@ -15,10 +15,15 @@ export const useDefaultHandler = () => {
     }
 }
 
-export const executeHandler = (endpoint: Endpoint, config: CreateServerConfig) => {
-    return async (request: Request, response: Response) => {
+export type EnhancedRequest = Request & {
+    route: string
+}
+
+export const executeHandler = (endpoint: Endpoint, config: CreateServerConfig, matchingRoute: string) => {
+    return async (request: EnhancedRequest, response: Response) => {
         
         let result: unknown;
+        request.route = matchingRoute;
 
         try
         {

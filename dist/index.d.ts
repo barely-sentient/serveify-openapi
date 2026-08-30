@@ -1,6 +1,13 @@
 import { JectOptions } from 'json-ject';
 import { Request } from 'express';
 
+type Endpoint<TContext = unknown> = {
+    handler: (req: Request, session: TContext) => Promise<unknown>;
+};
+type EnhancedRequest = Request & {
+    route: string;
+};
+
 /**
  * Defines a plugin interface for extending server behavior across key lifecycle events.
  *
@@ -19,7 +26,7 @@ type ServerPlugin<TContext = unknown> = {
      *
      * @throws {Error} Aborts request processing when a hook throws an unhandled error or validation fails.
      */
-    preRequest?: (req: Request, ctx: TContext) => Promise<void>;
+    preRequest?: (req: EnhancedRequest, ctx: TContext) => Promise<void>;
     /**
      * Executes immediately after the primary request handler completes.
      *
@@ -30,7 +37,7 @@ type ServerPlugin<TContext = unknown> = {
      * @param result - The payload returned by the main request handler.
      * @returns A promise resolving to either the original or transformed response payload.
      */
-    postRequest?: (req: Request, ctx: TContext, result: unknown) => Promise<unknown>;
+    postRequest?: (req: EnhancedRequest, ctx: TContext, result: unknown) => Promise<unknown>;
     /**
      * Executes once during server bootstrap, right before network listeners open.
      *
@@ -97,10 +104,6 @@ type CreateServerConfig<TContext = unknown> = {
     buildContext: (req: Request) => Promise<TContext>;
 };
 
-type Endpoint<TContext = unknown> = {
-    handler: (req: Request, session: TContext) => Promise<unknown>;
-};
-
 declare const registerEndpointHandler: <TContext = unknown>(method: HttpMethod, path: string, handler: Endpoint<TContext>) => void;
 declare const createHttpServer: (conf: CreateServerConfig) => Promise<void>;
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' | 'HEAD' | 'OPTIONS';
@@ -118,4 +121,4 @@ declare const useGlobLoader: (path: string) => ServerPlugin;
 
 declare const usePermissify: ServerPlugin;
 
-export { type CreateServerConfig, type SSLConfig, type ServerPlugin, createHttpServer, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader, usePermissify };
+export { type CreateServerConfig, type EnhancedRequest, type SSLConfig, type ServerPlugin, createHttpServer, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader, usePermissify };

@@ -11,9 +11,10 @@ var useDefaultHandler = () => {
     handler: defaultHandler
   };
 };
-var executeHandler = (endpoint, config) => {
+var executeHandler = (endpoint, config, matchingRoute) => {
   return async (request, response) => {
     let result;
+    request.route = matchingRoute;
     try {
       const sessionCtx = await config.buildContext(request);
       await Promise.all(
@@ -155,10 +156,10 @@ var createEndpoints = (express2, method, urls, config) => {
     const endpoint = routes[url];
     if (!endpoint) {
       unhandledEndpoints.push({ method, url });
-      express2[method.toLowerCase()](url, executeHandler(useDefaultHandler(), config));
+      express2[method.toLowerCase()](url, executeHandler(useDefaultHandler(), config, url));
       return;
     }
-    express2[method.toLowerCase()](url, executeHandler(endpoint, config));
+    express2[method.toLowerCase()](url, executeHandler(endpoint, config, url));
   });
 };
 

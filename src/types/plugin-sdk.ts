@@ -1,4 +1,5 @@
 import { Request } from "express"
+import { EnhancedRequest } from "../handler.js"
 
 /**
  * Defines a plugin interface for extending server behavior across key lifecycle events.
@@ -19,7 +20,7 @@ export type ServerPlugin<TContext = unknown> = {
      * 
      * @throws {Error} Aborts request processing when a hook throws an unhandled error or validation fails.
      */
-    preRequest?: (req: Request, ctx: TContext) => Promise<void>
+    preRequest?: (req: EnhancedRequest, ctx: TContext) => Promise<void>
 
     /**
      * Executes immediately after the primary request handler completes.
@@ -31,7 +32,7 @@ export type ServerPlugin<TContext = unknown> = {
      * @param result - The payload returned by the main request handler.
      * @returns A promise resolving to either the original or transformed response payload.
      */
-    postRequest?: (req: Request, ctx: TContext, result: unknown) => Promise<unknown>
+    postRequest?: (req: EnhancedRequest, ctx: TContext, result: unknown) => Promise<unknown>
 
     /**
      * Executes once during server bootstrap, right before network listeners open.
