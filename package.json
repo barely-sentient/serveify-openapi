@@ -1,6 +1,6 @@
 {
   "name": "serveify-openapi",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Turn your openapi specification into an actual server",
   "keywords": [
     "serveify",
@@ -32,6 +32,7 @@
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:local": "node scripts/build.mjs --deploy-local",
     "dev": "tsx watch src/index.ts",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --watch"

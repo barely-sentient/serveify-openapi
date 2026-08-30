@@ -1,3 +1,3 @@
 import { useGlobLoader } from "./use-glob.js";
 
-export const useEventify = useGlobLoader("src/**/*.events.ts")
+export const useEventify = useGlobLoader("./**/*.events.ts")

@@ -19,7 +19,7 @@ type MissingEndpoint = {
     method: HttpMethod
 }
 
-let unhandledEndpoints: MissingEndpoint[] = [];
+const unhandledEndpoints: MissingEndpoint[] = [];
 
 const routeMap: Record<HttpMethod, Record<string, Endpoint>> = {
     GET: {},
@@ -31,8 +31,10 @@ const routeMap: Record<HttpMethod, Record<string, Endpoint>> = {
     OPTIONS: {}
 }
 
+const toExpressPath = (path: string) => path.replace(/{([^}]+)}/g, ':$1');
+
 export const registerEndpointHandler = <TContext = unknown>(method: HttpMethod, path: string, handler: Endpoint<TContext>) => {
-    routeMap[method][path] = handler as Endpoint;
+    routeMap[method.toUpperCase() as HttpMethod][toExpressPath(path)] = handler as Endpoint;
 }
 
 export const createHttpServer = async (conf: CreateServerConfig) => {
@@ -71,7 +73,7 @@ const getEndpointsFromSchema = (express: Express, openapiDoc: any, config: Creat
     for (const [url, methods] of Object.entries((openapiDoc as any).paths ?? {})) {
         for (const method of Object.keys(methods as object)) {
             const m = method.toUpperCase() as HttpMethod;
-            if (m in openApiEndpoints) openApiEndpoints[m].push(url);
+            if (m in openApiEndpoints) openApiEndpoints[m].push(toExpressPath(url));
         }
     }
 

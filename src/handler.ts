@@ -23,7 +23,7 @@ export const executeHandler = (endpoint: Endpoint, config: CreateServerConfig) =
         try
         {
             
-            const sessionCtx = config.buildSession(request);
+            const sessionCtx = await config.buildSession(request);
 
             await Promise.all(
                 (config.plugins ?? []).map(

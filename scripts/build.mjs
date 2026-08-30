@@ -1,4 +1,4 @@
-import { rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 
@@ -17,3 +17,19 @@ execFileSync(
   ],
   { cwd: root, stdio: "inherit" }
 );
+
+if (process.argv.includes('--deploy-local'))
+{
+  const thisDir = resolve(import.meta.dirname, "..", "dist")
+  const thatDir = resolve(process.cwd(), "..", "openapi-server-test/node_modules/serveify-openapi/dist");
+
+  rmSync(
+    thatDir,
+    { recursive: true, force: true }
+  )
+
+  mkdirSync(thatDir)
+
+  copyFileSync(`${thisDir}/index.js`, `${thatDir}/index.js`)
+  copyFileSync(`${thisDir}/index.d.ts`, `${thatDir}/index.d.ts`)
+}

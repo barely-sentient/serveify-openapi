@@ -109,6 +109,11 @@ declare const useCustomHandlers: ServerPlugin;
 
 declare const useEventify: ServerPlugin;
 
+/**
+ * Load files ahead of routing being available.
+ * @param path - the path FROM the root of the project
+ * @returns
+ */
 declare const useGlobLoader: (path: string) => ServerPlugin;
 
 export { type CreateServerConfig, type SSLConfig, type ServerPlugin, createHttpServer, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader };

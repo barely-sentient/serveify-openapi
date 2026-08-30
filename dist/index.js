@@ -15,7 +15,7 @@ var executeHandler = (endpoint, config) => {
   return async (request, response) => {
     let result;
     try {
-      const sessionCtx = config.buildSession(request);
+      const sessionCtx = await config.buildSession(request);
       await Promise.all(
         (config.plugins ?? []).map(
           (plugin) => plugin.preRequest?.(request, sessionCtx)
@@ -67,8 +67,9 @@ var routeMap = {
   HEAD: {},
   OPTIONS: {}
 };
+var toExpressPath = (path) => path.replace(/{([^}]+)}/g, ":$1");
 var registerEndpointHandler = (method, path, handler) => {
-  routeMap[method][path] = handler;
+  routeMap[method.toUpperCase()][toExpressPath(path)] = handler;
 };
 var createHttpServer = async (conf) => {
   const openapiDoc = await parseFromUri(conf.openApiFilePath, conf.jectOptions);
@@ -93,7 +94,7 @@ var getEndpointsFromSchema = (express2, openapiDoc, config) => {
   for (const [url, methods] of Object.entries(openapiDoc.paths ?? {})) {
     for (const method of Object.keys(methods)) {
       const m = method.toUpperCase();
-      if (m in openApiEndpoints) openApiEndpoints[m].push(url);
+      if (m in openApiEndpoints) openApiEndpoints[m].push(toExpressPath(url));
     }
   }
   Object.keys(openApiEndpoints).forEach((httpMethod) => {
@@ -120,6 +121,7 @@ var createEndpoints = (express2, method, urls, config) => {
 
 // src/core-plugins/use-glob.ts
 import { glob } from "tinyglobby";
+import os from "os";
 var useGlobLoader = (path) => ({
   async beforeRouting() {
     const files = await glob([path, "!**/*.test.ts"], {
@@ -127,16 +129,24 @@ var useGlobLoader = (path) => ({
       onlyFiles: true
     });
     await Promise.all(
-      files.map((file) => import(file))
+      files.map((file) => resolveAndImport(file))
     );
   }
 });
+var resolveAndImport = async (file) => {
+  let path = `${process.cwd()}/${file}`;
+  if (os.platform() == "win32") {
+    path = path.substring(2);
+  }
+  path = path.replaceAll("\\", "/");
+  await import(path);
+};
 
 // src/core-plugins/use-custom-handlers.ts
-var useCustomHandlers = useGlobLoader("src/**/*.handler.ts");
+var useCustomHandlers = useGlobLoader("./**/*.handler.ts");
 
 // src/core-plugins/use-eventify.ts
-var useEventify = useGlobLoader("src/**/*.events.ts");
+var useEventify = useGlobLoader("./**/*.events.ts");
 export {
   createHttpServer,
   registerEndpointHandler,
