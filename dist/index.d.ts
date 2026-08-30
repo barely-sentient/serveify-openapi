@@ -94,7 +94,7 @@ type CreateServerConfig<TContext = unknown> = {
     /**
      * Construct a session
      */
-    buildSession: (req: Request) => Promise<TContext>;
+    buildContext: (req: Request) => Promise<TContext>;
 };
 
 type Endpoint<TContext = unknown> = {

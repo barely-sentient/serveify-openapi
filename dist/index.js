@@ -15,7 +15,7 @@ var executeHandler = (endpoint, config) => {
   return async (request, response) => {
     let result;
     try {
-      const sessionCtx = await config.buildSession(request);
+      const sessionCtx = await config.buildContext(request);
       await Promise.all(
         (config.plugins ?? []).map(
           (plugin) => plugin.preRequest?.(request, sessionCtx)
