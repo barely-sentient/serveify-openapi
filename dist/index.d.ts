@@ -105,6 +105,8 @@ type CreateServerConfig<TContext = unknown> = {
 };
 
 declare const registerEndpointHandler: <TContext = unknown>(method: HttpMethod, path: string, handler: Endpoint<TContext>) => void;
+declare let getRequestSchemaForEndpoint: (method: HttpMethod, url: string) => any;
+declare let getResponseSchemaForEndpoint: (method: HttpMethod, url: string) => any;
 declare const createHttpServer: (conf: CreateServerConfig) => Promise<void>;
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' | 'HEAD' | 'OPTIONS';
 
@@ -121,4 +123,4 @@ declare const useGlobLoader: (path: string) => ServerPlugin;
 
 declare const usePermissify: ServerPlugin;
 
-export { type CreateServerConfig, type EnhancedRequest, type SSLConfig, type ServerPlugin, createHttpServer, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader, usePermissify };
+export { type CreateServerConfig, type EnhancedRequest, type HttpMethod, type SSLConfig, type ServerPlugin, createHttpServer, getRequestSchemaForEndpoint, getResponseSchemaForEndpoint, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader, usePermissify };

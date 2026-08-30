@@ -1,6 +1,12 @@
 export { CreateServerConfig, SSLConfig } from './types/create-server-config.js'
 export { ServerPlugin } from './types/plugin-sdk.js'
-export { createHttpServer, registerEndpointHandler } from './http.js'
+export { 
+    createHttpServer, 
+    registerEndpointHandler, 
+    getRequestSchemaForEndpoint, 
+    getResponseSchemaForEndpoint,
+    HttpMethod
+} from './http.js'
 export { useCustomHandlers } from './core-plugins/use-custom-handlers.js'
 export { useEventify } from './core-plugins/use-eventify.js'
 export { useGlobLoader } from './core-plugins/use-glob.js'

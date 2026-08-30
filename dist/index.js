@@ -195,6 +195,8 @@ var useEventify = useGlobLoader("./**/*.events.ts");
 var usePermissify = useGlobLoader("./**/*.permissions.ts");
 export {
   createHttpServer,
+  getRequestSchemaForEndpoint,
+  getResponseSchemaForEndpoint,
   registerEndpointHandler,
   useCustomHandlers,
   useEventify,
