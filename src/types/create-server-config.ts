@@ -1,5 +1,6 @@
 import { JectOptions } from "json-ject"
 import { ServerPlugin } from "./plugin-sdk.js"
+import { Request } from "express"
 
 /**
  * Configuration options for setting up secure HTTPS communication via SSL/TLS.
@@ -47,5 +48,10 @@ export type CreateServerConfig<TContext = unknown> = {
     /**
      * Passthrough to ject
      */
-    jectOptions?: JectOptions
+    jectOptions?: JectOptions,
+
+    /**
+     * Construct a session
+     */
+    buildSession: (req: Request) => Promise<TContext>
 }

@@ -41,4 +41,10 @@ export type ServerPlugin<TContext = unknown> = {
      * @returns A promise that resolves when startup tasks complete.
      */
     beforeServerStart?: () => Promise<void>
+
+    /**
+     * Executes before any of the routing happens, perfect opportunity to
+     * find any handlers and add them. 
+     */
+    beforeRouting?: () => Promise<void>
 }
