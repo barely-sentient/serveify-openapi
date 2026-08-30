@@ -71,8 +71,34 @@ var toExpressPath = (path) => path.replace(/{([^}]+)}/g, ":$1");
 var registerEndpointHandler = (method, path, handler) => {
   routeMap[method.toUpperCase()][toExpressPath(path)] = handler;
 };
+var getRequestSchemaForEndpoint;
+var getResponseSchemaForEndpoint;
+var toOpenApiPath = (path) => path.replace(/:([^/]+)/g, "{$1}");
+var resolveOperation = (doc, method, url) => {
+  const lowerMethod = method.toLowerCase();
+  const candidates = [url, toOpenApiPath(url), toExpressPath(url)];
+  for (const candidate of candidates) {
+    const op = doc?.paths?.[candidate]?.[lowerMethod];
+    if (op) return op;
+  }
+  return void 0;
+};
 var createHttpServer = async (conf) => {
   const openapiDoc = await parseFromUri(conf.openApiFilePath, conf.jectOptions);
+  getRequestSchemaForEndpoint = (method, url) => {
+    const operation = resolveOperation(openapiDoc, method, url);
+    if (!operation?.requestBody?.content) return void 0;
+    const content = operation.requestBody.content;
+    return content["application/json"]?.schema ?? Object.values(content)[0]?.schema;
+  };
+  getResponseSchemaForEndpoint = (method, url) => {
+    const operation = resolveOperation(openapiDoc, method, url);
+    const responses = operation?.responses;
+    if (!responses) return void 0;
+    const response = responses["200"] ?? responses["201"] ?? responses["default"] ?? Object.entries(responses).find(([code]) => code.startsWith("2"))?.[1];
+    if (!response?.content) return void 0;
+    return response.content["application/json"]?.schema ?? Object.values(response.content)[0]?.schema;
+  };
   await Promise.all(
     (conf.plugins ?? []).map((plugin) => plugin.beforeRouting?.())
   );

@@ -37,9 +37,42 @@ export const registerEndpointHandler = <TContext = unknown>(method: HttpMethod, 
     routeMap[method.toUpperCase() as HttpMethod][toExpressPath(path)] = handler as Endpoint;
 }
 
+export let getRequestSchemaForEndpoint: (method: HttpMethod, url: string) => any;
+export let getResponseSchemaForEndpoint: (method: HttpMethod, url: string) => any;
+
+const toOpenApiPath = (path: string) => path.replace(/:([^/]+)/g, '{$1}');
+
+const resolveOperation = (doc: any, method: HttpMethod, url: string) => {
+    const lowerMethod = method.toLowerCase();
+    // try as-is (OpenAPI style: /users/{id}), then Express style conversion, and vice versa
+    const candidates = [url, toOpenApiPath(url), toExpressPath(url)];
+    for (const candidate of candidates) {
+        const op = doc?.paths?.[candidate]?.[lowerMethod];
+        if (op) return op;
+    }
+    return undefined;
+};
+
 export const createHttpServer = async (conf: CreateServerConfig) => {
     
     const openapiDoc = await parseFromUri(conf.openApiFilePath, conf.jectOptions);
+
+    getRequestSchemaForEndpoint = (method: HttpMethod, url: string) => {
+        const operation = resolveOperation(openapiDoc, method, url);
+        if (!operation?.requestBody?.content) return undefined;
+        const content = operation.requestBody.content;
+        return content['application/json']?.schema ?? (Object.values(content as Record<string, any>)[0] as any)?.schema;
+    };
+
+    getResponseSchemaForEndpoint = (method: HttpMethod, url: string) => {
+        const operation = resolveOperation(openapiDoc, method, url);
+        const responses = operation?.responses;
+        if (!responses) return undefined;
+        const response = responses['200'] ?? responses['201'] ?? responses['default']
+            ?? Object.entries(responses).find(([code]) => code.startsWith('2'))?.[1] as any;
+        if (!response?.content) return undefined;
+        return response.content['application/json']?.schema ?? (Object.values(response.content as Record<string, any>)[0] as any)?.schema;
+    };
 
     // before the routing starts
     await Promise.all(
