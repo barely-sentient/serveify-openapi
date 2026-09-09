@@ -303,10 +303,39 @@ var resolveAndImport = async (file) => {
 var useCustomHandlers = useGlobLoader("./**/*.handler.ts");
 
 // src/core-plugins/use-eventify.ts
-var useEventify = useGlobLoader("./**/*.events.ts");
+import { access } from "fs/promises";
+var useEventify = () => ({
+  async beforeRouting(schema) {
+    try {
+      await access("node_modules/eventify-openapi");
+      const { eventifyOpenApi } = await import("eventify-openapi");
+      await eventifyOpenApi({
+        input: "openapi.json",
+        type: "file",
+        tsconfigPath: "tsconfig.json",
+        contextType: { from: "./ctx.js", name: "SessionCtx" }
+      });
+      return await useGlobLoader("./**/*.events.ts")?.beforeRouting?.(schema);
+    } catch (err) {
+      console.warn("eventify-openapi is not installed. Please install it to use eventify features.");
+      return;
+    }
+  }
+});
 
 // src/core-plugins/use-permissify.ts
-var usePermissify = useGlobLoader("./**/*.permissions.ts");
+import { access as access2 } from "fs/promises";
+var usePermissify = () => ({
+  async beforeRouting(schema) {
+    try {
+      await access2("node_modules/permissify-openapi");
+    } catch (err) {
+      console.warn("permissify-openapi is not installed. Please install it to use permissify features.");
+      return;
+    }
+    return await useGlobLoader("./**/*.permissions.ts").beforeRouting?.(schema);
+  }
+});
 
 // src/core-plugins/use-static.ts
 import { readFile } from "fs/promises";

@@ -122,7 +122,7 @@ type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' | 'HEAD' | 'OPTION
 
 declare const useCustomHandlers: ServerPlugin;
 
-declare const useEventify: ServerPlugin;
+declare const useEventify: () => ServerPlugin;
 
 /**
  * Load files ahead of routing being available.
@@ -131,7 +131,7 @@ declare const useEventify: ServerPlugin;
  */
 declare const useGlobLoader: (path: string) => ServerPlugin;
 
-declare const usePermissify: ServerPlugin;
+declare const usePermissify: () => ServerPlugin;
 
 type StaticOptions = {
     /** URL route to register. Defaults to the file path for useStatic. */

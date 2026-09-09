@@ -3,6 +3,8 @@ import { jest } from "@jest/globals";
 // Mock tinyglobby and os before importing core-plugins, same as use-glob tests
 const mockGlob = jest.fn();
 const mockPlatform = jest.fn(() => "linux");
+const mockAccess = jest.fn(async () => undefined);
+const mockEventifyOpenApi = jest.fn(async () => undefined);
 
 jest.unstable_mockModule("tinyglobby", () => ({
   glob: mockGlob,
@@ -11,6 +13,14 @@ jest.unstable_mockModule("tinyglobby", () => ({
 jest.unstable_mockModule("os", () => ({
   default: { platform: mockPlatform },
 }));
+
+jest.unstable_mockModule("fs/promises", () => ({
+  access: mockAccess,
+}));
+
+jest.unstable_mockModule("eventify-openapi", () => ({
+  eventifyOpenApi: mockEventifyOpenApi,
+}), { virtual: true });
 
 const { useGlobLoader } = await import("../src/core-plugins/use-glob.js");
 const { useCustomHandlers } = await import("../src/core-plugins/use-custom-handlers.js");
@@ -23,6 +33,8 @@ describe("core-plugins", () => {
     mockGlob.mockReset();
     mockPlatform.mockReturnValue("linux");
     mockGlob.mockResolvedValue([]);
+    mockAccess.mockResolvedValue(undefined);
+    mockEventifyOpenApi.mockResolvedValue(undefined);
   });
 
   describe("useCustomHandlers", () => {
@@ -55,12 +67,13 @@ describe("core-plugins", () => {
 
   describe("useEventify", () => {
     it("should be a ServerPlugin with beforeRouting", () => {
-      expect(useEventify).toHaveProperty("beforeRouting");
-      expect(typeof (useEventify as any).beforeRouting).toBe("function");
+      const plugin = useEventify();
+      expect(plugin).toHaveProperty("beforeRouting");
+      expect(typeof plugin.beforeRouting).toBe("function");
     });
 
     it("should glob for .events.ts files", async () => {
-      await (useEventify as any).beforeRouting();
+      await useEventify().beforeRouting?.();
       expect(mockGlob).toHaveBeenCalledWith(["./**/*.events.ts", "!**/*.test.ts"], {
         expandDirectories: true,
         onlyFiles: true,
@@ -73,19 +86,20 @@ describe("core-plugins", () => {
       await (expected as any).beforeRouting();
       const expectedCall = mockGlob.mock.calls[0];
       mockGlob.mockClear();
-      await (useEventify as any).beforeRouting();
+      await useEventify().beforeRouting?.();
       expect(mockGlob.mock.calls[0]).toEqual(expectedCall);
     });
   });
 
   describe("usePermissify", () => {
     it("should be a ServerPlugin with beforeRouting", () => {
-      expect(usePermissify).toHaveProperty("beforeRouting");
-      expect(typeof (usePermissify as any).beforeRouting).toBe("function");
+      const plugin = usePermissify();
+      expect(plugin).toHaveProperty("beforeRouting");
+      expect(typeof plugin.beforeRouting).toBe("function");
     });
 
     it("should glob for .permissions.ts files", async () => {
-      await (usePermissify as any).beforeRouting();
+      await usePermissify().beforeRouting?.();
       expect(mockGlob).toHaveBeenCalledWith(["./**/*.permissions.ts", "!**/*.test.ts"], {
         expandDirectories: true,
         onlyFiles: true,
@@ -98,7 +112,7 @@ describe("core-plugins", () => {
       await (expected as any).beforeRouting();
       const expectedCall = mockGlob.mock.calls[0];
       mockGlob.mockClear();
-      await (usePermissify as any).beforeRouting();
+      await usePermissify().beforeRouting?.();
       expect(mockGlob.mock.calls[0]).toEqual(expectedCall);
     });
   });
