@@ -150,20 +150,22 @@ export const createHttpServer = async (conf: CreateServerConfig) => {
         return dereferenceSchema(schema, openapiDoc);
     };
 
-    // before the routing starts
-    await Promise.all(
-        (conf.plugins ?? []).map(plugin => plugin.beforeRouting?.(openapiDoc))
-    );
+    // before the routing starts, run sequentially in registration order
+    // so later plugins can build on earlier ones (e.g. custom handler
+    // loaders registered after an auto CRUD plugin win on conflicts)
+    for (const plugin of (conf.plugins ?? [])) {
+        await plugin.beforeRouting?.(openapiDoc);
+    }
 
     const app = express();
 
     // loads all the endpoints into the endpoints object.
     getEndpointsFromSchema(app, openapiDoc, conf);
 
-    // before the server starts
-    await Promise.all(
-        (conf.plugins ?? []).map(plugin => plugin.beforeServerStart?.())
-    );
+    // before the server starts, run sequentially in registration order
+    for (const plugin of (conf.plugins ?? [])) {
+        await plugin.beforeServerStart?.();
+    }
 
     app.listen(conf.httpPort, () => {
         console.log(`OpenAPI server listening on http://localhost:${conf.httpPort}`)
