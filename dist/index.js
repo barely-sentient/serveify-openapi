@@ -346,6 +346,28 @@ var usePermissify = () => ({
   }
 });
 
+// src/core-plugins/use-tsify.ts
+import { access as access3 } from "fs/promises";
+var useTsify = (openApiFile, jectConfig) => ({
+  async beforeRouting() {
+    try {
+      await access3("node_modules/tsify-openapi");
+      const { tsifyOpenApi } = await import("tsify-openapi");
+      await tsifyOpenApi({
+        jectCfg: jectConfig,
+        input: openApiFile,
+        type: "file",
+        outDir: "src/generated",
+        headers: { Authorization: "Bearer " + process.env.TOKEN },
+        tsconfigPath: "tsconfig.json"
+      });
+    } catch (err) {
+      console.warn("tsify-openapi is not installed. Please install it to use tsify features.");
+      return;
+    }
+  }
+});
+
 // src/core-plugins/use-static.ts
 import { readFile } from "fs/promises";
 import { resolve, relative, sep, join, extname } from "path";
@@ -415,5 +437,6 @@ export {
   usePermissify,
   useStatic,
   useStaticDirectory,
+  useTsify,
   useWebApp
 };

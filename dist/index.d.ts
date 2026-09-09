@@ -133,6 +133,10 @@ declare const useGlobLoader: (path: string) => ServerPlugin;
 
 declare const usePermissify: () => ServerPlugin;
 
+declare const useTsify: (openApiFile: string, jectConfig: JectOptions) => {
+    beforeRouting(): Promise<void>;
+};
+
 type StaticOptions = {
     /** URL route to register. Defaults to the file path for useStatic. */
     route?: string;
@@ -146,4 +150,4 @@ declare const useStaticDirectory: (directoryPath: string, options?: StaticOption
 
 declare const useWebApp: (route: string, staticDir: PathLike) => ServerPlugin;
 
-export { type CreateServerConfig, type EnhancedRequest, type HttpMethod, type SSLConfig, type ServerPlugin, type StaticOptions, createHttpServer, getRequestSchemaForEndpoint, getResponseSchemaForEndpoint, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader, usePermissify, useStatic, useStaticDirectory, useWebApp };
+export { type CreateServerConfig, type EnhancedRequest, type HttpMethod, type SSLConfig, type ServerPlugin, type StaticOptions, createHttpServer, getRequestSchemaForEndpoint, getResponseSchemaForEndpoint, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader, usePermissify, useStatic, useStaticDirectory, useTsify, useWebApp };
