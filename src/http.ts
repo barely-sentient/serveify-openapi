@@ -220,6 +220,16 @@ const getEndpointsFromSchema = (express: Express, openapiDoc: any, config: Creat
             config
         );
     })
+
+    // Also mount explicitly registered handlers that are not represented in the OpenAPI document.
+    // This supports auxiliary routes such as a web application's static entry points.
+    Object.keys(routeMap).forEach((httpMethod) => {
+        const schemaRoutes = new Set(openApiEndpoints[httpMethod as HttpMethod]);
+        for (const url of Object.keys(routeMap[httpMethod as HttpMethod])) {
+            if (schemaRoutes.has(url)) continue;
+            createEndpoints(express, httpMethod as HttpMethod, [url], config);
+        }
+    });
 }
 
 const createEndpoints = (express: Express, method: HttpMethod, urls: string[], config: CreateServerConfig) => {

@@ -57,6 +57,12 @@ var executeHandler = (endpoint, config, matchingRoute) => {
         };
       }
     }
+    if (result?.__serveifyStatic === true) {
+      const staticResult2 = result;
+      if (staticResult2.contentType) response.setHeader("Content-Type", staticResult2.contentType);
+      response.end(staticResult2.body);
+      return;
+    }
     response.setHeader("Content-Type", "application/json");
     response.end(JSON.stringify(result));
   };
@@ -225,6 +231,13 @@ var getEndpointsFromSchema = (express2, openapiDoc, config) => {
       config
     );
   });
+  Object.keys(routeMap).forEach((httpMethod) => {
+    const schemaRoutes = new Set(openApiEndpoints[httpMethod]);
+    for (const url of Object.keys(routeMap[httpMethod])) {
+      if (schemaRoutes.has(url)) continue;
+      createEndpoints(express2, httpMethod, [url], config);
+    }
+  });
 };
 var createEndpoints = (express2, method, urls, config) => {
   const routes = routeMap[method];
@@ -269,6 +282,48 @@ var useEventify = useGlobLoader("./**/*.events.ts");
 
 // src/core-plugins/use-permissify.ts
 var usePermissify = useGlobLoader("./**/*.permissions.ts");
+
+// src/core-plugins/use-static.ts
+import { readFile } from "fs/promises";
+import { resolve, relative, sep, join, extname } from "path";
+import mime from "mime-types";
+var getContentType = (filePath, options) => {
+  const detected = mime.contentType(extname(filePath));
+  return options.contentType ?? options["content-type"] ?? (typeof detected === "string" ? detected : "application/octet-stream");
+};
+var toRoute = (route) => {
+  const normalized = route.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+  return normalized ? `/${normalized}` : "/";
+};
+var staticResult = async (filePath, options) => ({
+  __serveifyStatic: true,
+  body: await readFile(filePath),
+  contentType: getContentType(filePath, options)
+});
+var useStatic = (filePath, options = {}) => ({
+  beforeRouting: async () => {
+    registerEndpointHandler("GET", toRoute(options.route ?? filePath), {
+      handler: async () => staticResult(filePath, options)
+    });
+  }
+});
+var useStaticDirectory = (directoryPath, options = {}) => ({
+  beforeRouting: async () => {
+    const root = resolve(directoryPath);
+    const route = toRoute(options.route ?? "/");
+    registerEndpointHandler("GET", route === "/" ? "/*" : `${route}/*`, {
+      handler: async (request) => {
+        const requestedPath = request.params[0] || "index.html";
+        const filePath = resolve(root, requestedPath);
+        const pathFromRoot = relative(root, filePath);
+        if (pathFromRoot.startsWith(`..${sep}`) || pathFromRoot === ".." || resolve(root, pathFromRoot) !== filePath) {
+          throw Object.assign(new Error("Not found"), { status_code: 404 });
+        }
+        return staticResult(join(root, pathFromRoot), options);
+      }
+    });
+  }
+});
 export {
   createHttpServer,
   getRequestSchemaForEndpoint,
@@ -277,5 +332,7 @@ export {
   useCustomHandlers,
   useEventify,
   useGlobLoader,
-  usePermissify
+  usePermissify,
+  useStatic,
+  useStaticDirectory
 };

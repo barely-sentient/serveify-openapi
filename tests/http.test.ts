@@ -189,6 +189,34 @@ describe("http", () => {
       consoleLogSpy.mockRestore();
     });
 
+    it("should mount explicitly registered routes that are absent from the OpenAPI document", async () => {
+      const fresh = await getFreshHttp();
+      const uiPath = `/ui-${Date.now()}`;
+      fresh.registerEndpointHandler("GET", uiPath, { handler: jest.fn(async () => "<html />") } as any);
+      mockParseFromUri.mockResolvedValue({ paths: {} });
+
+      const freshApp: any = {
+        get: jest.fn(),
+        post: jest.fn(),
+        patch: jest.fn(),
+        put: jest.fn(),
+        delete: jest.fn(),
+        head: jest.fn(),
+        options: jest.fn(),
+        use: jest.fn(),
+        listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
+      };
+      mockExpress.mockReturnValueOnce(freshApp);
+
+      await fresh.createHttpServer({
+        openApiFilePath: "./spec.json",
+        httpPort: 4003,
+        buildContext: async () => ({}),
+      } as any);
+
+      expect(freshApp.get.mock.calls.some((call: any[]) => call[0] === uiPath)).toBe(true);
+    });
+
     it("should call parseFromUri with openApiFilePath and jectOptions", async () => {
       const fresh = await getFreshHttp();
       const doc = { paths: {} };

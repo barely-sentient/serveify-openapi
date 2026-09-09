@@ -123,4 +123,15 @@ declare const useGlobLoader: (path: string) => ServerPlugin;
 
 declare const usePermissify: ServerPlugin;
 
-export { type CreateServerConfig, type EnhancedRequest, type HttpMethod, type SSLConfig, type ServerPlugin, createHttpServer, getRequestSchemaForEndpoint, getResponseSchemaForEndpoint, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader, usePermissify };
+type StaticOptions = {
+    /** URL route to register. Defaults to the file path for useStatic. */
+    route?: string;
+    contentType?: string;
+    "content-type"?: string;
+};
+/** Registers a GET route that serves one file without JSON serialization. */
+declare const useStatic: (filePath: string, options?: StaticOptions) => ServerPlugin;
+/** Registers a GET wildcard route that serves files, including nested files, from a directory. */
+declare const useStaticDirectory: (directoryPath: string, options?: StaticOptions) => ServerPlugin;
+
+export { type CreateServerConfig, type EnhancedRequest, type HttpMethod, type SSLConfig, type ServerPlugin, type StaticOptions, createHttpServer, getRequestSchemaForEndpoint, getResponseSchemaForEndpoint, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader, usePermissify, useStatic, useStaticDirectory };

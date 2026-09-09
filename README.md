@@ -36,10 +36,10 @@ await createHttpServer({
 1. Reads and parses your OpenAPI JSON file using `json-ject` (supports `@require`, `@var`, `@env`, `@default` directives).
 2. Runs `beforeServerStart` and `beforeRouting` plugin lifecycle hooks (allowing auto-loading of route handlers or event listeners before routes are set up).
 3. Discovers every `method + path` combination from the spec's `paths` object.
-4. Matches discovered endpoints against your registered handlers (unassigned endpoints default to returning `503 Not Implemented`).
+4. Matches discovered endpoints against your registered handlers (endpoints with no handler return `500 Not Implemented` until you register one).
 5. Boots an Express instance with `express.json()` body parsing and starts listening on the configured port.
 6. Calls request-level plugin lifecycle hooks (`preRequest`, `postRequest`) at the appropriate times.
-7. Catches all errors and returns a `503` status by default (or a custom status if the thrown error has a `status` property).
+7. Catches all errors and returns them as JSON (custom status via `status_code` on the thrown error — see Error handling).
 
 ## Registering Handlers
 
@@ -93,7 +93,7 @@ const myPlugin: ServerPlugin<MyContext> = {
   // Called before every request handler
   preRequest: async (req, ctx) => {
     const token = req.headers.authorization
-    if (!token) throw Object.assign(new Error("Unauthorized"), { status: 401 })
+    if (!token) throw Object.assign(new Error("Unauthorized"), { status_code: 401 })
   },
 
   // Called after every request handler, can transform the response
@@ -183,33 +183,31 @@ registerEndpointHandler("GET", "/users/{id}", async (req) => {
 
 ## Error handling
 
-All errors thrown inside handlers or plugin hooks are caught and returned as JSON:
-
-```json
-{
-  "error": "Internal server error",
-  "code": "INTERNAL_ERROR"
-}
-
-```
-
-The default status code is `503`. If the thrown error has a `status` property, that value is used instead:
+One rule to remember: **the HTTP status comes from `status_code` on whatever you
+throw.** No `status_code`, no custom status. Every error response is JSON shaped
+like `{ "status": "failed", "message": "..." }`.
 
 ```ts
-throw Object.assign(new Error("Not found"), { status: 404 })
-// Returns 404 with the error JSON
-
+// 404 with { status: "failed", message: "Not found" }
+throw Object.assign(new Error("Not found"), { status_code: 404 })
 ```
 
-Unmatched routes return:
+What happens in each case:
 
-```json
-{
-  "error": "Not found",
-  "code": "NOT_FOUND"
-}
+| Situation | HTTP status | Response body |
+| --- | --- | --- |
+| Handler succeeds | `200` | Your return value as JSON |
+| You throw with `status_code` | Your code | `{ status: "failed", message }` |
+| A library error with details (Ajv validation, `persistify` permission/validation errors) | Its `status_code`, else `500` | `{ status: "failed", message, errors, response, schema }` — the `schema` shows the expected request/response shapes for debugging |
+| You throw a plain `Error` with no `status_code` | `200` (!) | `{ status: "failed", message }` — always set `status_code`, otherwise failures look like successes |
+| Spec endpoint with no registered handler | `500` | `{ status: "failed", message: "This endpoint has not been implemented" }` |
+| Path not in the spec at all | Express default `404` | HTML page (no route is registered for it) |
+| Malformed JSON body | `400` | `{ status: "failed", message: "Invalid JSON body" }` |
 
-```
+Common statuses to throw: `400` bad input, `401` not authenticated, `403` not
+allowed, `404` not found. The companion packages already do this for you
+(`persistify-openapi` throws `403` on denied permissions and `400` on failed
+validation; `autocrudify-openapi` throws `404` for missing records).
 
 ## Path conversion
 

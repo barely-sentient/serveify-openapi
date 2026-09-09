@@ -79,6 +79,16 @@ export const executeHandler = (endpoint: Endpoint, config: CreateServerConfig, m
             }
         }
 
+        if ((result as any)?.__serveifyStatic === true) {
+            const staticResult = result as {
+                body: Buffer
+                contentType?: string
+            };
+            if (staticResult.contentType) response.setHeader("Content-Type", staticResult.contentType);
+            response.end(staticResult.body);
+            return;
+        }
+
         response.setHeader("Content-Type", "application/json");
         response.end(JSON.stringify(result));
     };
