@@ -306,8 +306,18 @@ var useCustomHandlers = useGlobLoader("./**/*.handler.ts");
 import { access } from "fs/promises";
 var useEventify = (openApiJson) => ({
   async beforeRouting(schema) {
+    let canUse = false;
     try {
       await access("node_modules/eventify-openapi");
+      canUse = true;
+    } catch (err) {
+      console.warn("eventify-openapi is not installed. Please install it to use eventify features.", err);
+      return;
+    }
+    if (!canUse) {
+      return;
+    }
+    try {
       const { eventifyOpenApi } = await import("eventify-openapi");
       await eventifyOpenApi({
         input: openApiJson,
@@ -317,8 +327,7 @@ var useEventify = (openApiJson) => ({
       });
       return await useGlobLoader("./**/*.events.ts")?.beforeRouting?.(schema);
     } catch (err) {
-      console.warn("eventify-openapi is not installed. Please install it to use eventify features.", err);
-      return;
+      console.error(err);
     }
   }
 });

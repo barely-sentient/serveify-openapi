@@ -4,10 +4,23 @@ import { ServerPlugin } from "../types/plugin-sdk.js";
 
 export const useEventify = (openApiJson: string): ServerPlugin => ({
     async beforeRouting(schema) {
+        
+        let canUse = false;
+        
         try
         {
             await access("node_modules/eventify-openapi");
+            canUse = true;
+        } catch (err) {
+            console.warn("eventify-openapi is not installed. Please install it to use eventify features.", err);
+            return;
+        }
 
+        if (!canUse) {
+            return;
+        }
+        try
+        {
             // @ts-expect-error
             const { eventifyOpenApi } = await import("eventify-openapi");
 
@@ -19,10 +32,9 @@ export const useEventify = (openApiJson: string): ServerPlugin => ({
             });
 
             return await useGlobLoader("./**/*.events.ts")?.beforeRouting?.(schema);
-
-        } catch (err) {
-            console.warn("eventify-openapi is not installed. Please install it to use eventify features.", err);
-            return;
+        }
+        catch (err) {
+            console.error(err);
         }
     }
 });
