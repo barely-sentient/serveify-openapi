@@ -36,7 +36,7 @@ var executeHandler = (endpoint, config, matchingRoute) => {
       response.statusCode = 200;
     } catch (error) {
       if (error.errors) {
-        response.statusCode = 500;
+        response.statusCode = error.status_code ?? 500;
         result = {
           status: "failed",
           message: error.message ?? error,
@@ -181,14 +181,26 @@ var createHttpServer = async (conf) => {
     if (!schema) return void 0;
     return dereferenceSchema(schema, openapiDoc);
   };
-  await Promise.all(
-    (conf.plugins ?? []).map((plugin) => plugin.beforeRouting?.(openapiDoc))
-  );
+  for (const plugin of conf.plugins ?? []) {
+    await plugin.beforeRouting?.(openapiDoc);
+  }
   const app = express();
+  app.use(express.json());
   getEndpointsFromSchema(app, openapiDoc, conf);
-  await Promise.all(
-    (conf.plugins ?? []).map((plugin) => plugin.beforeServerStart?.())
-  );
+  app.use((err, _req, res, next) => {
+    const status = err?.status ?? err?.statusCode;
+    const isBodyParseError = err?.type === "entity.parse.failed" || err instanceof SyntaxError && "body" in err;
+    if (isBodyParseError || status === 400) {
+      res.statusCode = 400;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ status: "failed", message: "Invalid JSON body" }));
+      return;
+    }
+    next(err);
+  });
+  for (const plugin of conf.plugins ?? []) {
+    await plugin.beforeServerStart?.();
+  }
   app.listen(conf.httpPort, () => {
     console.log(`OpenAPI server listening on http://localhost:${conf.httpPort}`);
     console.log();

@@ -1,4 +1,4 @@
-import express, { Express, Handler, Request } from "express"
+import express, { Express, Handler, NextFunction, Request, Response } from "express"
 import { parseFromUri } from "json-ject"
 import { CreateServerConfig } from "./types/create-server-config.js"
 import { Endpoint, executeHandler, useDefaultHandler } from "./handler.js";
@@ -159,8 +159,29 @@ export const createHttpServer = async (conf: CreateServerConfig) => {
 
     const app = express();
 
+    // Parse JSON bodies so req.body is an object (not a string) for handlers
+    // and preRequest validation. Must come before route registration.
+    app.use(express.json());
+
     // loads all the endpoints into the endpoints object.
     getEndpointsFromSchema(app, openapiDoc, conf);
+
+    // Malformed JSON bodies would otherwise fall through to Express's default
+    // HTML error page. Keep the API JSON shaped.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+        const status = (err as any)?.status ?? (err as any)?.statusCode;
+        const isBodyParseError =
+            (err as any)?.type === "entity.parse.failed" ||
+            ((err as any) instanceof SyntaxError && "body" in (err as any));
+        if (isBodyParseError || status === 400) {
+            res.statusCode = 400;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ status: "failed", message: "Invalid JSON body" }));
+            return;
+        }
+        next(err);
+    });
 
     // before the server starts, run sequentially in registration order
     for (const plugin of (conf.plugins ?? [])) {

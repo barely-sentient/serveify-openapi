@@ -56,7 +56,8 @@ export const executeHandler = (endpoint: Endpoint, config: CreateServerConfig, m
         }catch(error)
         {
             if ((error as any).errors) {
-                response.statusCode = 500;
+                // Respect an explicit status (e.g. 400 validation) when present.
+                response.statusCode = (error as any).status_code ?? 500;
                 result = {
                     status: 'failed',
                     message: (error as Error).message ?? error,

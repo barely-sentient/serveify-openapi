@@ -12,6 +12,8 @@ const mockPut = jest.fn();
 const mockDelete = jest.fn();
 const mockHead = jest.fn();
 const mockOptions = jest.fn();
+const mockUse = jest.fn();
+const mockExpressJson = jest.fn(() => jest.fn());
 
 const mockApp: any = {
   get: mockGet,
@@ -21,10 +23,11 @@ const mockApp: any = {
   delete: mockDelete,
   head: mockHead,
   options: mockOptions,
+  use: mockUse,
   listen: mockListen,
 };
 
-const mockExpress = jest.fn(() => mockApp);
+const mockExpress: any = Object.assign(jest.fn(() => mockApp), { json: mockExpressJson });
 const mockParseFromUri = jest.fn();
 
 // Unstable mock must be called before importing the module under test.
@@ -199,6 +202,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -227,6 +231,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -258,6 +263,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((port: number, cb: () => void) => {
           order.push("listen");
           if (cb) cb();
@@ -289,6 +295,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -300,6 +307,33 @@ describe("http", () => {
         } as any),
       ).resolves.not.toThrow();
       expect(freshApp.listen).toHaveBeenCalledWith(4003, expect.any(Function));
+    });
+
+    it("should wire express.json() body parsing and a JSON error handler via app.use", async () => {
+      const fresh = await getFreshHttp();
+      mockParseFromUri.mockResolvedValue({ paths: {} });
+      const freshApp: any = {
+        get: jest.fn(),
+        post: jest.fn(),
+        patch: jest.fn(),
+        put: jest.fn(),
+        delete: jest.fn(),
+        head: jest.fn(),
+        options: jest.fn(),
+        use: jest.fn(),
+        listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
+      };
+      mockExpress.mockReturnValueOnce(freshApp);
+      await fresh.createHttpServer({
+        openApiFilePath: "./openapi.json",
+        httpPort: 4003,
+        buildContext: async () => ({}),
+      } as any);
+      expect(mockExpressJson).toHaveBeenCalled();
+      // json middleware + malformed-JSON error middleware
+      expect(freshApp.use).toHaveBeenCalledTimes(2);
+      expect(freshApp.use).toHaveBeenNthCalledWith(1, expect.any(Function));
+      expect(freshApp.use).toHaveBeenNthCalledWith(2, expect.any(Function));
     });
 
     it("should execute all plugins' lifecycle hooks via Promise.all", async () => {
@@ -315,6 +349,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -346,6 +381,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -379,6 +415,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -404,6 +441,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -427,6 +465,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -454,6 +493,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -490,6 +530,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -516,6 +557,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -545,6 +587,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -572,6 +615,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       };
       mockExpress.mockReturnValueOnce(freshApp);
@@ -607,6 +651,7 @@ describe("http", () => {
         delete: jest.fn(),
         head: jest.fn(),
         options: jest.fn(),
+        use: jest.fn(),
         listen: jest.fn((p: number, cb: () => void) => { if (cb) cb(); return {} as any; }),
       } as any;
     }
