@@ -317,7 +317,7 @@ var useEventify = (openApiJson) => ({
       });
       return await useGlobLoader("./**/*.events.ts")?.beforeRouting?.(schema);
     } catch (err) {
-      console.warn("eventify-openapi is not installed. Please install it to use eventify features.");
+      console.warn("eventify-openapi is not installed. Please install it to use eventify features.", err);
       return;
     }
   }
