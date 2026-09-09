@@ -7,6 +7,7 @@ type Endpoint<TContext = unknown> = {
 };
 type EnhancedRequest = Request & {
     route: string;
+    reroute: (webAppKey: string) => Promise<void>;
 };
 
 /**
@@ -52,6 +53,14 @@ type ServerPlugin<TContext = unknown> = {
      * find any handlers and add them.
      */
     beforeRouting?: (schema: unknown) => Promise<void>;
+    /**
+     * What to do when a request is made to a route that doesn't exist. This is called after all other plugins have been called and the request has been processed.
+     * @param req - The incoming Express Request object.
+     * @param ctx - The shared application context for the current scope.
+     * @param result - The payload returned by the main request handler.
+     * @returns A promise resolving to either the original or transformed response payload.
+     */
+    on404NotFound?: (req: EnhancedRequest, ctx: TContext) => Promise<void>;
 };
 
 /**

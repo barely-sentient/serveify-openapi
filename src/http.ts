@@ -1,7 +1,7 @@
 import express, { Express, Handler, NextFunction, Request, Response } from "express"
 import { parseFromUri } from "json-ject"
 import { CreateServerConfig } from "./types/create-server-config.js"
-import { Endpoint, executeHandler, useDefaultHandler } from "./handler.js";
+import { EnhancedRequest, Endpoint, executeHandler, useDefaultHandler } from "./handler.js";
 
 const openApiEndpoints: Record<HttpMethod, string[]> = {
     GET: [],
@@ -30,10 +30,16 @@ const routeMap: Record<HttpMethod, Record<string, Endpoint>> = {
     OPTIONS: {}
 }
 
+const webAppMap: Record<string, { endpoint: Endpoint, route: string }> = {};
+
 const toExpressPath = (path: string) => path.replace(/{([^}]+)}/g, ':$1');
 
 export const registerEndpointHandler = <TContext = unknown>(method: HttpMethod, path: string, handler: Endpoint<TContext>) => {
     routeMap[method.toUpperCase() as HttpMethod][toExpressPath(path)] = handler as Endpoint;
+}
+
+export const registerWebApp = (key: string, route: string, endpoint: Endpoint) => {
+    webAppMap[key] = { route, endpoint };
 }
 
 export let getRequestSchemaForEndpoint: (method: HttpMethod, url: string) => any;
@@ -181,6 +187,31 @@ export const createHttpServer = async (conf: CreateServerConfig) => {
             return;
         }
         next(err);
+    });
+
+    if ((conf.plugins ?? []).some(plugin => plugin.on404NotFound)) app.use(async (request: Request, response: Response) => {
+        const enhancedRequest = request as EnhancedRequest;
+        let rerouted = false;
+
+        enhancedRequest.route = request.path;
+        enhancedRequest.reroute = async (webAppKey: string) => {
+            const webApp = webAppMap[webAppKey];
+            if (!webApp) {
+                throw new Error(`Unknown web app: ${webAppKey}`);
+            }
+            rerouted = true;
+            await executeHandler(webApp.endpoint, conf, webApp.route)(enhancedRequest, response);
+        };
+
+        const sessionCtx = await conf.buildContext(enhancedRequest);
+        for (const plugin of (conf.plugins ?? [])) {
+            await plugin.on404NotFound?.(enhancedRequest, sessionCtx);
+            if (response.headersSent || response.writableEnded || rerouted) return;
+        }
+
+        response.statusCode = 404;
+        response.setHeader("Content-Type", "application/json");
+        response.end(JSON.stringify({ status: "failed", message: "Not found" }));
     });
 
     // before the server starts, run sequentially in registration order

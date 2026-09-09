@@ -74,7 +74,7 @@ type CreateServerConfig<TContext unknown> = {
 
 ## Plugins
 
-Plugins hook into the server lifecycle at four key points:
+Plugins hook into the server lifecycle at five key points:
 
 ```ts
 import { ServerPlugin } from "serveify-openapi"
@@ -100,6 +100,13 @@ const myPlugin: ServerPlugin<MyContext> = {
   postRequest: async (req, ctx, result) => {
     return { ...result, timestamp: Date.now() }
   },
+
+  // Called when no registered route matches the request
+  on404NotFound: async (req, ctx) => {
+    if (req.headers.accept?.includes("text/html")) {
+      await req.reroute("app")
+    }
+  },
 }
 
 ```
@@ -116,6 +123,11 @@ await createHttpServer({
 ```
 
 Plugins are executed in order. If a `preRequest` hook throws, subsequent plugins and the handler are skipped.
+
+`on404NotFound` runs only when normal routing does not match. It can handle the
+request through `req.res`, or call `req.reroute(key)` to serve the registered
+web app with that key. `useWebApp(route, staticDir)` registers its route as the
+key, so the example above would use `useWebApp("app", "my-app")`.
 
 ---
 

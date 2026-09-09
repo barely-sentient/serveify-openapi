@@ -33,6 +33,23 @@ const staticResult = async (filePath: string, options: StaticOptions): Promise<S
     contentType: getContentType(filePath, options),
 })
 
+export const createStaticDirectoryEndpoint = (directoryPath: string, options: StaticOptions = {}) => {
+    const root = resolve(directoryPath)
+    return {
+        handler: async (request: any): Promise<StaticResult> => {
+            const requestedPath = request.params[0] || "index.html"
+            const filePath = resolve(root, requestedPath)
+            const pathFromRoot = relative(root, filePath)
+
+            if (pathFromRoot.startsWith(`..${sep}`) || pathFromRoot === ".." || resolve(root, pathFromRoot) !== filePath) {
+                throw Object.assign(new Error("Not found"), { status_code: 404 })
+            }
+
+            return staticResult(join(root, pathFromRoot), options)
+        },
+    }
+}
+
 /** Registers a GET route that serves one file without JSON serialization. */
 export const useStatic = (filePath: string, options: StaticOptions = {}): ServerPlugin => ({
     beforeRouting: async () => {
@@ -45,21 +62,7 @@ export const useStatic = (filePath: string, options: StaticOptions = {}): Server
 /** Registers a GET wildcard route that serves files, including nested files, from a directory. */
 export const useStaticDirectory = (directoryPath: string, options: StaticOptions = {}): ServerPlugin => ({
     beforeRouting: async () => {
-        const root = resolve(directoryPath)
         const route = toRoute(options.route ?? "/")
-
-        registerEndpointHandler("GET", route === "/" ? "/*" : `${route}/*`, {
-            handler: async (request): Promise<StaticResult> => {
-                const requestedPath = request.params[0] || "index.html"
-                const filePath = resolve(root, requestedPath)
-                const pathFromRoot = relative(root, filePath)
-
-                if (pathFromRoot.startsWith(`..${sep}`) || pathFromRoot === ".." || resolve(root, pathFromRoot) !== filePath) {
-                    throw Object.assign(new Error("Not found"), { status_code: 404 })
-                }
-
-                return staticResult(join(root, pathFromRoot), options)
-            },
-        })
+        registerEndpointHandler("GET", route === "/" ? "/*" : `${route}/*`, createStaticDirectoryEndpoint(directoryPath, options))
     }
 });

@@ -18,6 +18,7 @@ export const useDefaultHandler = () => {
 
 export type EnhancedRequest = Request & {
     route: string
+    reroute: (webAppKey: string) => Promise<void>
 }
 
 export const executeHandler = (endpoint: Endpoint, config: CreateServerConfig, matchingRoute: string) => {

@@ -1,6 +1,7 @@
 import { PathLike } from "fs";
 import { ServerPlugin } from "../types/plugin-sdk.js";
-import { useStaticDirectory } from "./use-static.js";
+import { registerEndpointHandler, registerWebApp } from "../http.js";
+import { createStaticDirectoryEndpoint } from "./use-static.js";
 import { mkdir } from 'fs/promises'
 
 export const useWebApp = (route: string, staticDir: PathLike): ServerPlugin => ({
@@ -9,8 +10,10 @@ export const useWebApp = (route: string, staticDir: PathLike): ServerPlugin => (
         await mkdir(`web/${staticDir}/static`, { recursive: true });
         await mkdir(`web/${staticDir}/src`, { recursive: true });
 
-        useStaticDirectory(`web/${staticDir}/static`, {
-            route: route
-        });
+        const endpoint = createStaticDirectoryEndpoint(`web/${staticDir}/static`, { route });
+        const normalizedRoute = route.replace(/^\/+|\/+$/g, "");
+        const staticRoute = normalizedRoute ? `${route.replace(/\/+$/g, "")}/*` : "/*";
+        registerEndpointHandler("GET", staticRoute, endpoint);
+        registerWebApp(route, staticRoute, endpoint);
     }
 });

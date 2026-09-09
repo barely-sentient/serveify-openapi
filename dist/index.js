@@ -88,9 +88,13 @@ var routeMap = {
   HEAD: {},
   OPTIONS: {}
 };
+var webAppMap = {};
 var toExpressPath = (path) => path.replace(/{([^}]+)}/g, ":$1");
 var registerEndpointHandler = (method, path, handler) => {
   routeMap[method.toUpperCase()][toExpressPath(path)] = handler;
+};
+var registerWebApp = (key, route, endpoint) => {
+  webAppMap[key] = { route, endpoint };
 };
 var getRequestSchemaForEndpoint;
 var getResponseSchemaForEndpoint;
@@ -204,6 +208,27 @@ var createHttpServer = async (conf) => {
     }
     next(err);
   });
+  if ((conf.plugins ?? []).some((plugin) => plugin.on404NotFound)) app.use(async (request, response) => {
+    const enhancedRequest = request;
+    let rerouted = false;
+    enhancedRequest.route = request.path;
+    enhancedRequest.reroute = async (webAppKey) => {
+      const webApp = webAppMap[webAppKey];
+      if (!webApp) {
+        throw new Error(`Unknown web app: ${webAppKey}`);
+      }
+      rerouted = true;
+      await executeHandler(webApp.endpoint, conf, webApp.route)(enhancedRequest, response);
+    };
+    const sessionCtx = await conf.buildContext(enhancedRequest);
+    for (const plugin of conf.plugins ?? []) {
+      await plugin.on404NotFound?.(enhancedRequest, sessionCtx);
+      if (response.headersSent || response.writableEnded || rerouted) return;
+    }
+    response.statusCode = 404;
+    response.setHeader("Content-Type", "application/json");
+    response.end(JSON.stringify({ status: "failed", message: "Not found" }));
+  });
   for (const plugin of conf.plugins ?? []) {
     await plugin.beforeServerStart?.();
   }
@@ -300,6 +325,20 @@ var staticResult = async (filePath, options) => ({
   body: await readFile(filePath),
   contentType: getContentType(filePath, options)
 });
+var createStaticDirectoryEndpoint = (directoryPath, options = {}) => {
+  const root = resolve(directoryPath);
+  return {
+    handler: async (request) => {
+      const requestedPath = request.params[0] || "index.html";
+      const filePath = resolve(root, requestedPath);
+      const pathFromRoot = relative(root, filePath);
+      if (pathFromRoot.startsWith(`..${sep}`) || pathFromRoot === ".." || resolve(root, pathFromRoot) !== filePath) {
+        throw Object.assign(new Error("Not found"), { status_code: 404 });
+      }
+      return staticResult(join(root, pathFromRoot), options);
+    }
+  };
+};
 var useStatic = (filePath, options = {}) => ({
   beforeRouting: async () => {
     registerEndpointHandler("GET", toRoute(options.route ?? filePath), {
@@ -309,19 +348,8 @@ var useStatic = (filePath, options = {}) => ({
 });
 var useStaticDirectory = (directoryPath, options = {}) => ({
   beforeRouting: async () => {
-    const root = resolve(directoryPath);
     const route = toRoute(options.route ?? "/");
-    registerEndpointHandler("GET", route === "/" ? "/*" : `${route}/*`, {
-      handler: async (request) => {
-        const requestedPath = request.params[0] || "index.html";
-        const filePath = resolve(root, requestedPath);
-        const pathFromRoot = relative(root, filePath);
-        if (pathFromRoot.startsWith(`..${sep}`) || pathFromRoot === ".." || resolve(root, pathFromRoot) !== filePath) {
-          throw Object.assign(new Error("Not found"), { status_code: 404 });
-        }
-        return staticResult(join(root, pathFromRoot), options);
-      }
-    });
+    registerEndpointHandler("GET", route === "/" ? "/*" : `${route}/*`, createStaticDirectoryEndpoint(directoryPath, options));
   }
 });
 
@@ -331,9 +359,11 @@ var useWebApp = (route, staticDir) => ({
   async beforeRouting() {
     await mkdir(`web/${staticDir}/static`, { recursive: true });
     await mkdir(`web/${staticDir}/src`, { recursive: true });
-    useStaticDirectory(`web/${staticDir}/static`, {
-      route
-    });
+    const endpoint = createStaticDirectoryEndpoint(`web/${staticDir}/static`, { route });
+    const normalizedRoute = route.replace(/^\/+|\/+$/g, "");
+    const staticRoute = normalizedRoute ? `${route.replace(/\/+$/g, "")}/*` : "/*";
+    registerEndpointHandler("GET", staticRoute, endpoint);
+    registerWebApp(route, staticRoute, endpoint);
   }
 });
 export {
