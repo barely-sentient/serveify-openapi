@@ -324,6 +324,18 @@ var useStaticDirectory = (directoryPath, options = {}) => ({
     });
   }
 });
+
+// src/core-plugins/use-web-app.ts
+import { mkdir } from "fs/promises";
+var useWebApp = (route, staticDir) => ({
+  async beforeRouting() {
+    await mkdir(`web/${staticDir}/static`, { recursive: true });
+    await mkdir(`web/${staticDir}/src`, { recursive: true });
+    useStaticDirectory(`web/${staticDir}/static`, {
+      route
+    });
+  }
+});
 export {
   createHttpServer,
   getRequestSchemaForEndpoint,
@@ -334,5 +346,6 @@ export {
   useGlobLoader,
   usePermissify,
   useStatic,
-  useStaticDirectory
+  useStaticDirectory,
+  useWebApp
 };

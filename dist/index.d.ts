@@ -1,5 +1,6 @@
 import { JectOptions } from 'json-ject';
 import { Request } from 'express';
+import { PathLike } from 'fs';
 
 type Endpoint<TContext = unknown> = {
     handler: (req: Request, session: TContext) => Promise<unknown>;
@@ -134,4 +135,6 @@ declare const useStatic: (filePath: string, options?: StaticOptions) => ServerPl
 /** Registers a GET wildcard route that serves files, including nested files, from a directory. */
 declare const useStaticDirectory: (directoryPath: string, options?: StaticOptions) => ServerPlugin;
 
-export { type CreateServerConfig, type EnhancedRequest, type HttpMethod, type SSLConfig, type ServerPlugin, type StaticOptions, createHttpServer, getRequestSchemaForEndpoint, getResponseSchemaForEndpoint, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader, usePermissify, useStatic, useStaticDirectory };
+declare const useWebApp: (route: string, staticDir: PathLike) => ServerPlugin;
+
+export { type CreateServerConfig, type EnhancedRequest, type HttpMethod, type SSLConfig, type ServerPlugin, type StaticOptions, createHttpServer, getRequestSchemaForEndpoint, getResponseSchemaForEndpoint, registerEndpointHandler, useCustomHandlers, useEventify, useGlobLoader, usePermissify, useStatic, useStaticDirectory, useWebApp };
