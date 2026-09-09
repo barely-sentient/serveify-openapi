@@ -2,7 +2,7 @@ import { access } from "fs/promises";
 import { useGlobLoader } from "./use-glob.js";
 import { ServerPlugin } from "../types/plugin-sdk.js";
 
-export const useEventify = (): ServerPlugin => ({
+export const useEventify = (openApiJson: string): ServerPlugin => ({
     async beforeRouting(schema) {
         try
         {
@@ -12,7 +12,7 @@ export const useEventify = (): ServerPlugin => ({
             const { eventifyOpenApi } = await import("eventify-openapi");
 
             await eventifyOpenApi({
-                input: "openapi.json",
+                input: openApiJson,
                 type: "file",
                 tsconfigPath: "tsconfig.json",
                 contextType: { from: "./ctx.js", name: "SessionCtx" }

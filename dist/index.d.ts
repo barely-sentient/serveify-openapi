@@ -122,7 +122,7 @@ type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' | 'HEAD' | 'OPTION
 
 declare const useCustomHandlers: ServerPlugin;
 
-declare const useEventify: () => ServerPlugin;
+declare const useEventify: (openApiJson: string) => ServerPlugin;
 
 /**
  * Load files ahead of routing being available.

@@ -304,13 +304,13 @@ var useCustomHandlers = useGlobLoader("./**/*.handler.ts");
 
 // src/core-plugins/use-eventify.ts
 import { access } from "fs/promises";
-var useEventify = () => ({
+var useEventify = (openApiJson) => ({
   async beforeRouting(schema) {
     try {
       await access("node_modules/eventify-openapi");
       const { eventifyOpenApi } = await import("eventify-openapi");
       await eventifyOpenApi({
-        input: "openapi.json",
+        input: openApiJson,
         type: "file",
         tsconfigPath: "tsconfig.json",
         contextType: { from: "./ctx.js", name: "SessionCtx" }
